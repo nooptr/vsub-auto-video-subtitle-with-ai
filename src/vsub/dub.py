@@ -187,7 +187,7 @@ def synthesize(
         proc = subprocess.Popen([python, "-I", WORKER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=err, text=True, encoding="utf-8", cwd=tmp)
         try:
-            proc.stdin.write(json.dumps({"voice": voice, "items": items}, ensure_ascii=False))
+            proc.stdin.write(json.dumps({"voice": voice, "items": items}))  # ASCII: không phụ thuộc mã hoá
             proc.stdin.close()
             n = 0
             for line in proc.stdout:

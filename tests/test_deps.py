@@ -74,7 +74,7 @@ def test_check_claude_login_state(tmp_path, monkeypatch, logged_in):
 def test_check_claude_missing(monkeypatch):
     monkeypatch.setattr("vsub.translate.find_claude", lambda: None)
     d = deps.check_claude()
-    assert not d.ok and d.action == "Cài đặt" and "install.sh" in d.guide
+    assert not d.ok and d.action == "Cài đặt" and "claude.ai/install" in d.guide
 
 
 def test_check_vieneu_missing(monkeypatch):

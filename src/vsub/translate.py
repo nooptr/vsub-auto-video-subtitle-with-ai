@@ -76,13 +76,27 @@ class ClaudeRunner:
         self.exe = self.exe or find_claude()
         if not self.exe:
             raise ClaudeError(
-                "Không tìm thấy Claude CLI. Cài: npm install -g @anthropic-ai/claude-code, "
-                "rồi chạy `claude` một lần để đăng nhập."
+                "Không tìm thấy Claude CLI. Mở tab “Thư viện” trong app để cài và đăng nhập "
+                "(hoặc chạy: vsub doctor --install claude)."
             )
+
+    def command(self) -> list[str]:
+        """Lệnh gọi Claude CLI. claude.cmd (cài bằng npm trên Windows) phải đi qua cmd.exe, mà cmd.exe
+        làm hỏng tham số nhiều dòng (system prompt) -> gọi thẳng node cli.js. File .py: chạy bằng Python này."""
+        exe = self.exe or ""
+        low = exe.lower()
+        if low.endswith(".py"):
+            return [sys.executable, exe]
+        if sys.platform.startswith("win") and low.endswith((".cmd", ".bat")):
+            js = os.path.join(os.path.dirname(exe), "node_modules", "@anthropic-ai", "claude-code", "cli.js")
+            node = shutil.which("node")
+            if node and os.path.isfile(js):
+                return [node, js]
+        return [exe]
 
     def ask(self, system: str, instruction: str, payload: str) -> str:
         cmd = [
-            self.exe, "-p", "--output-format", "json", "--model", self.model,
+            *self.command(), "-p", "--output-format", "json", "--model", self.model,
             "--tools", "", "--no-session-persistence", "--strict-mcp-config",
             "--system-prompt", system, instruction,
         ]

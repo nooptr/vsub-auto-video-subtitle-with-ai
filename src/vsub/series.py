@@ -95,7 +95,7 @@ def parse_name(path: str) -> NameInfo:
     if ep is None and words and re.fullmatch(r"\d{1,3}", words[-1]):
         ep = int(words.pop())
     if not season:
-        for d in reversed(p.split(os.sep)[:-1]):
+        for d in reversed(re.split(r"[\\/]", p)[:-1]):  # cả "/" lẫn "\\" (Windows)
             m = _SEASON_IN_DIR.search(d.lower())
             if m:
                 season = int(m[1] or m[2])
@@ -497,6 +497,7 @@ class Source:
 
 def _scan_subs(folder: str, target: str, depth: int = 2) -> list[str]:
     out = []
+    folder = os.path.normpath(folder)
     base = folder.rstrip(os.sep).count(os.sep)
     for root, dirs, files in os.walk(folder):
         dirs[:] = [] if root.count(os.sep) - base >= depth else [d for d in dirs if not d.startswith(".")]

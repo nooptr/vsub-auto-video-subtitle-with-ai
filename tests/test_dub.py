@@ -113,7 +113,7 @@ def test_voiceover_end_to_end(tmp_path, monkeypatch):
                     "-f", "lavfi", "-i", "sine=frequency=440:duration=8:sample_rate=48000",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(video)], check=True)
     worker = tmp_path / "fake_worker.py"
-    worker.write_text(FAKE_WORKER)
+    worker.write_text(FAKE_WORKER, encoding="utf-8")
     monkeypatch.setattr(dub, "WORKER", str(worker))
     cues = [Cue(1.0, 2.5, ["Xin chào"]), Cue(5.0, 6.5, ["[nhạc] Tạm biệt"])]
     steps = []
@@ -148,7 +148,8 @@ def test_voiceover_end_to_end(tmp_path, monkeypatch):
 
 def test_synthesize_reports_fatal(tmp_path, monkeypatch):
     worker = tmp_path / "w.py"
-    worker.write_text('import json,sys; json.load(sys.stdin); print(json.dumps({"fatal": "không có giọng X"}))')
+    worker.write_text('import json,sys; json.load(sys.stdin); print(json.dumps({"fatal": "không có giọng X"}))',
+                      encoding="utf-8")
     monkeypatch.setattr(dub, "WORKER", str(worker))
     with pytest.raises(dub.DubError, match="không có giọng X"):
         dub.synthesize(["chào"], "X", python=sys.executable, root=str(tmp_path / "tts"))

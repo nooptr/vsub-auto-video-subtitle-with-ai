@@ -16,6 +16,7 @@ from vsub.translate import (
 
 FAKE = r'''#!{py}
 import json, os, sys
+sys.stdin.reconfigure(encoding="utf-8"); sys.stdout.reconfigure(encoding="utf-8")  # như claude thật
 args = sys.argv[1:]
 system = args[args.index("--system-prompt") + 1]
 assert args[args.index("--tools") + 1] == ""
@@ -49,8 +50,8 @@ print(json.dumps({{"type": "result", "is_error": False, "result": res, "total_co
 
 @pytest.fixture
 def fake_claude(tmp_path, monkeypatch):
-    exe = tmp_path / "claude"
-    exe.write_text(FAKE.format(py=sys.executable))
+    exe = tmp_path / "claude.py"  # .py: ClaudeRunner chạy bằng Python hiện tại (cả trên Windows)
+    exe.write_text(FAKE.format(py=sys.executable), encoding="utf-8")
     exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("FAKE_STATE", str(tmp_path / "state"))
     return str(exe)

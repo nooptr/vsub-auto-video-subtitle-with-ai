@@ -16,6 +16,7 @@ from vsub.translate import ClaudeRunner, translate_cues
 # Claude giả: ghi lại từng lần gọi (loại + dữ liệu stdin) vào FAKE_LOG
 FAKE = r'''#!{py}
 import json, os, sys
+sys.stdin.reconfigure(encoding="utf-8"); sys.stdout.reconfigure(encoding="utf-8")  # như claude thật
 args = sys.argv[1:]
 system = args[args.index("--system-prompt") + 1]
 data = json.loads(sys.stdin.read())
@@ -41,8 +42,8 @@ print(json.dumps({{"type": "result", "is_error": False, "result": json.dumps(res
 
 @pytest.fixture
 def claude(tmp_path, monkeypatch):
-    exe = tmp_path / "claude"
-    exe.write_text(FAKE.format(py=sys.executable))
+    exe = tmp_path / "claude.py"  # .py: ClaudeRunner chạy bằng Python hiện tại (cả trên Windows)
+    exe.write_text(FAKE.format(py=sys.executable), encoding="utf-8")
     exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
     log = tmp_path / "calls.jsonl"
     monkeypatch.setenv("FAKE_LOG", str(log))

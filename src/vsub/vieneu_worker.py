@@ -68,7 +68,7 @@ def main() -> None:
     _proto = os.fdopen(os.dup(1), "w", buffering=1, encoding="utf-8")
     os.dup2(2, 1)
     sys.stdout = sys.stderr
-    job = json.load(sys.stdin)
+    job = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))  # Windows: stdin mặc định cp1252
     try:
         import numpy as np
         import soundfile as sf

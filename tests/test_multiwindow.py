@@ -44,7 +44,7 @@ def test_concurrent_processes(tmp_path):
         p.start()
     for p in procs:
         p.join(30)
-    g = json.load(open(path))["learned"]["vi"]["glossary"]
+    g = json.load(open(path, encoding="utf-8"))["learned"]["vi"]["glossary"]
     assert len(g) == 6
 
 
