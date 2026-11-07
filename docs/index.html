@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vsub — Tự động làm phụ đề, dịch và thuyết minh phim bằng AI</title>
+  <meta name="description" content="vsub tự động làm phụ đề cho phim bằng Whisper chạy ngay trên máy, dịch bằng Claude giữ đúng tên riêng và xưng hô, thuyết minh tiếng Việt bằng VieNeu-TTS. Cho macOS và Windows.">
+  <meta name="keywords" content="làm phụ đề tự động, phụ đề AI, dịch phụ đề, vietsub, thuyết minh, Whisper, Claude, VieNeu-TTS, srt, phụ đề phim, mlx-whisper">
+  <meta name="author" content="viennv.dev">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="canonical" href="https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/">
+
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="vsub">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:title" content="vsub — Tự động làm phụ đề, dịch và thuyết minh phim">
+  <meta property="og:description" content="Whisper chạy ngay trên máy, dịch bằng Claude giữ tên riêng và xưng hô, thuyết minh tiếng Việt bằng VieNeu-TTS. macOS (chip M & Intel) và Windows.">
+  <meta property="og:url" content="https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/">
+  <meta property="og:image" content="https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Giao diện vsub: làm phụ đề, dịch và thuyết minh phim tự động">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="vsub — Tự động làm phụ đề, dịch và thuyết minh phim">
+  <meta name="twitter:description" content="Whisper chạy trên máy, dịch bằng Claude, thuyết minh tiếng Việt bằng VieNeu-TTS. macOS và Windows.">
+  <meta name="twitter:image" content="https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/assets/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "vsub",
+    "description": "Tự động làm phụ đề cho phim bằng Whisper, dịch bằng Claude giữ tên riêng và xưng hô, thuyết minh tiếng Việt bằng VieNeu-TTS.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "macOS 11+, Windows 10/11 (64-bit)",
+    "inLanguage": "vi",
+    "url": "https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/",
+    "downloadUrl": "https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest",
+    "image": "https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/assets/logo-512.png",
+    "screenshot": "https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/assets/app-main.png",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "viennv.dev", "url": "https://viennv.dev" }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff; --bg-soft: #f4f7fb; --text: #0f172a; --muted: #475569; --line: #e2e8f0;
+      --brand: #1d4ed8; --brand-2: #2563eb; --brand-soft: #dbeafe; --card: #ffffff; --accent: #facc15;
+      --shadow: 0 20px 50px -20px rgba(15, 23, 42, .35);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220; --bg-soft: #0f1a2e; --text: #e2e8f0; --muted: #94a3b8; --line: #1e293b;
+        --brand: #3b82f6; --brand-2: #60a5fa; --brand-soft: #172554; --card: #111c31;
+        --shadow: 0 20px 50px -20px rgba(0, 0, 0, .8);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+           background: var(--bg); color: var(--text); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+    header.nav { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(180%) blur(12px);
+                 background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
+    .nav .wrap { display: flex; align-items: center; gap: 24px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: var(--text); }
+    .brand img { width: 34px; height: 34px; }
+    .nav nav { display: flex; gap: 22px; margin-left: auto; font-size: 15px; }
+    .nav nav a { color: var(--muted); }
+    .nav nav a:hover { color: var(--text); text-decoration: none; }
+    .btn-gh { border: 1px solid var(--line); padding: 7px 14px; border-radius: 999px; color: var(--text) !important; }
+
+    .hero { padding: 72px 0 40px; background:
+            radial-gradient(1200px 500px at 85% -10%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 60%),
+            radial-gradient(800px 400px at -10% 10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%); }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+    .eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; color: var(--brand);
+               background: var(--brand-soft); padding: 6px 12px; border-radius: 999px; }
+    h1 { overflow-wrap: anywhere; font-size: clamp(30px, 5vw, 54px); line-height: 1.12; margin: 18px 0 16px; letter-spacing: -.02em; }
+    h1 span { background: linear-gradient(90deg, var(--brand), #7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lead { font-size: 18px; color: var(--muted); max-width: 560px; }
+    .dl { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 12px; }
+    .dl a { display: flex; align-items: center; gap: 12px; padding: 13px 20px; border-radius: 14px; font-weight: 600;
+            border: 1px solid var(--line); background: var(--card); color: var(--text); min-width: 236px;
+            transition: transform .15s, box-shadow .15s; }
+    .dl a:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--shadow); }
+    .dl a small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+    .dl a.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .dl a.primary small { color: #dbeafe; }
+    .dl svg { width: 26px; height: 26px; flex: none; }
+    .meta { font-size: 14px; color: var(--muted); }
+    .shot { border-radius: 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+
+    section { padding: 72px 0; }
+    section.soft { background: var(--bg-soft); }
+    h2 { font-size: clamp(26px, 3.4vw, 36px); line-height: 1.2; margin: 0 0 12px; letter-spacing: -.01em; }
+    .sub { color: var(--muted); max-width: 680px; margin: 0 0 36px; font-size: 17px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+    .card .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 22px;
+                 background: var(--brand-soft); margin-bottom: 14px; }
+    .card h3 { margin: 0 0 6px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .steps { counter-reset: s; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .step { position: relative; padding: 24px 22px 22px; border-radius: 16px; border: 1px dashed var(--line); }
+    .step::before { counter-increment: s; content: counter(s); position: absolute; top: -16px; left: 20px; width: 32px; height: 32px;
+                    border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; }
+    .step h3 { margin: 6px 0 6px; font-size: 17px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+    .ticks { list-style: none; padding: 0; margin: 18px 0 0; }
+    .ticks li { padding-left: 30px; position: relative; margin: 10px 0; color: var(--muted); }
+    .ticks li::before { content: "✓"; position: absolute; left: 0; top: 0; color: #16a34a; font-weight: 800; }
+    .ticks b { color: var(--text); }
+
+    .install { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+    .install .card h3 { display: flex; align-items: center; gap: 10px; font-size: 20px; margin-bottom: 12px; }
+    .install ol { margin: 0; padding-left: 20px; color: var(--muted); }
+    .install li { margin: 8px 0; }
+    .install code, .faq code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px;
+                  background: var(--bg-soft); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--text); }
+    .note { margin-top: 14px; font-size: 14px; color: var(--muted); border-left: 3px solid var(--accent); padding: 6px 12px;
+            background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 0 8px 8px 0; }
+    .req { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; font-size: 15px; color: var(--muted); }
+    .req b { color: var(--text); display: block; }
+
+    .faq details { border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; background: var(--card); margin-bottom: 12px; }
+    .faq summary { cursor: pointer; font-weight: 600; list-style: none; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; float: right; color: var(--muted); font-weight: 400; }
+    .faq details[open] summary::after { content: "–"; }
+    .faq p { color: var(--muted); margin: 10px 0 0; }
+
+    .cta { text-align: center; }
+    .cta .dl { justify-content: center; }
+
+    footer { border-top: 1px solid var(--line); padding: 32px 0; font-size: 14px; color: var(--muted); }
+    footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    footer .by { display: flex; align-items: center; gap: 10px; }
+    footer .by img { width: 30px; height: 30px; }
+    footer .links { margin-left: auto; display: flex; gap: 18px; }
+
+    @media (max-width: 900px) {
+      .hero-grid, .split, .install { grid-template-columns: minmax(0, 1fr); }
+      .grid, .req { grid-template-columns: 1fr 1fr; }
+      .steps { grid-template-columns: 1fr 1fr; row-gap: 32px; }
+      .nav nav a:not(.btn-gh) { display: none; }
+    }
+    @media (max-width: 560px) {
+      .grid, .steps, .req { grid-template-columns: 1fr; }
+      .dl a { min-width: 0; width: 100%; }
+      footer .links { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/logo-512.png" alt="Logo vsub" width="34" height="34">vsub</a>
+      <nav>
+        <a href="#tinh-nang">Tính năng</a>
+        <a href="#cach-dung">Cách dùng</a>
+        <a href="#cai-dat">Cài đặt</a>
+        <a href="#hoi-dap">Hỏi đáp</a>
+        <a class="btn-gh" href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="eyebrow">🎬 Phụ đề · Dịch · Thuyết minh</span>
+          <h1>Tự động làm phụ đề, <span>dịch và thuyết minh</span> phim</h1>
+          <p class="lead">Kéo thả video vào vsub: Whisper nhận dạng lời thoại ngay trên máy, Claude dịch giữ đúng tên riêng và
+            cách xưng hô, VieNeu-TTS đọc thuyết minh tiếng Việt. Ra file <b>.srt</b> dùng được với IINA, VLC, Infuse, Plex.</p>
+          <div class="dl" id="download">
+            <a id="dl-mac" href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-mac-universal.zip">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.97.9-3.76 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.01-1.12 2.76-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.4-.92-2.42-3.66zM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.6-2.66 1.37-.58.67-1.09 1.76-.95 2.79 1.01.08 2.04-.51 2.67-1.27z"/></svg>
+              <span>Tải cho macOS<small>Universal · chip M và Intel</small></span>
+            </a>
+            <a id="dl-win" href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-windows-amd64.zip">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.1 10.4 4v7.1H3V5.1zm0 13.8 7.4 1.1v-7H3v5.9zM11.3 3.9 21 2.5v8.6h-9.7V3.9zm0 16.2 9.7 1.4v-8.5h-9.7v7.1z"/></svg>
+              <span>Tải cho Windows<small>Windows 10/11 · 64-bit</small></span>
+            </a>
+          </div>
+          <p class="meta"><span id="ver">Bản mới nhất</span> · <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases">Tất cả bản phát hành</a> · <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai">Mã nguồn</a></p>
+        </div>
+        <img class="shot" src="assets/app-main.png" width="1100" height="1214" alt="Cửa sổ vsub: danh sách video, chọn ngôn ngữ, dịch bằng Claude, thuyết minh">
+      </div>
+    </section>
+
+    <section id="tinh-nang">
+      <div class="wrap">
+        <h2>Mọi thứ để có phụ đề tiếng Việt chuẩn</h2>
+        <p class="sub">Từ nhận dạng lời thoại, cắt câu, dịch có ngữ cảnh đến đọc thuyết minh. Bạn chỉ cần kéo thả video.</p>
+        <div class="grid">
+          <div class="card"><div class="ico">🎙️</div><h3>Nhận dạng ngay trên máy</h3>
+            <p>Whisper chạy offline: Mac chip M dùng GPU (mlx-whisper), Mac Intel và Windows dùng faster-whisper. Audio không rời khỏi máy.</p></div>
+          <div class="card"><div class="ico">✂️</div><h3>Cắt câu chuẩn phụ đề</h3>
+            <p>Tối đa 2 dòng, ngắt ở cuối câu và khi người nói dừng, căn giờ theo từng từ. Tự lọc câu Whisper hay “bịa” ở đoạn nhạc.</p></div>
+          <div class="card"><div class="ico">🌐</div><h3>Dịch giữ tên riêng, xưng hô</h3>
+            <p>Claude lập bảng tên riêng và bảng xưng hô theo từng cặp nhân vật (anh/em, tôi/cậu…), nhớ qua các tập của cùng một bộ phim.</p></div>
+          <div class="card"><div class="ico">🔍</div><h3>Né phụ đề in sẵn</h3>
+            <p>Video đã có phụ đề cứng ở dưới? vsub dò bằng OCR và tự đặt phụ đề mới lên phía trên để không đè lên nhau.</p></div>
+          <div class="card"><div class="ico">🔊</div><h3>Thuyết minh tiếng Việt</h3>
+            <p>VieNeu-TTS đọc bản dịch. App đo âm gốc trước rồi giảm vừa đủ ở từng câu. Xuất video có track thuyết minh và track âm gốc.</p></div>
+          <div class="card"><div class="ico">🔄</div><h3>Tự cài, tự cập nhật</h3>
+            <p>Tab “Thư viện” kiểm tra FFmpeg, Whisper, Claude, VieNeu và cài giúp khi thiếu. Có bản mới thì báo ngay, cập nhật bằng một nút bấm.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="soft" id="cach-dung">
+      <div class="wrap">
+        <h2>4 bước là xong</h2>
+        <p class="sub">Làm cả bộ phim nhiều tập một lượt: các tập được xếp đúng thứ tự, tập sau dùng tên riêng và xưng hô của tập trước.</p>
+        <div class="steps">
+          <div class="step"><h3>Kéo thả video</h3><p>Thả từng file hoặc cả thư mục vào cửa sổ app (hoặc lên icon).</p></div>
+          <div class="step"><h3>Chọn ngôn ngữ</h3><p>Ngôn ngữ trong phim (hoặc để tự nhận) và ngôn ngữ muốn dịch sang.</p></div>
+          <div class="step"><h3>Bấm Tạo phụ đề</h3><p>Muốn thuyết minh thì bật thêm trong Cài đặt, chọn giọng đọc.</p></div>
+          <div class="step"><h3>Nhận kết quả</h3><p><code>phim.srt</code>, <code>phim.vi.srt</code> và <code>phim.thuyetminh.mp4</code> nằm cạnh video.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap split">
+        <img class="shot" src="assets/app-libs.png" width="1100" height="1214" alt="Tab Thư viện: kiểm tra và cài FFmpeg, Whisper, Claude CLI, VieNeu-TTS">
+        <div>
+          <h2>Thiếu gì, app cài giúp</h2>
+          <p class="sub">Không cần mở Terminal. Tab “Thư viện” cho biết đang có gì, thiếu gì và cần nó để làm gì.</p>
+          <ul class="ticks">
+            <li><b>FFmpeg, Whisper</b>: bắt buộc, cài sẵn ngay lần mở đầu.</li>
+            <li><b>Model Whisper</b>: tự tải lần chạy đầu (large-v3-turbo 1,6 GB), báo trước dung lượng.</li>
+            <li><b>Claude CLI</b>: để dịch; cài và đăng nhập bằng một nút.</li>
+            <li><b>VieNeu-TTS</b>: chỉ cần khi bật thuyết minh; cài vào môi trường riêng rồi đọc thử một câu.</li>
+            <li>Mọi lệnh cài đều hỏi trước và chạy trong cửa sổ dòng lệnh để bạn thấy rõ.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="soft" id="cai-dat">
+      <div class="wrap">
+        <h2>Cài đặt</h2>
+        <p class="sub">Gói tải về rất nhẹ. Lần mở đầu, vsub tự cài Python và thư viện đúng cho máy bạn (cần mạng, mất vài phút, khoảng 1,3 GB).</p>
+        <div class="install">
+          <div class="card">
+            <h3>🍎 macOS</h3>
+            <ol>
+              <li>Tải <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-mac-universal.zip">vsub-mac-universal.zip</a>, giải nén.</li>
+              <li>Kéo <b>Vsub.app</b> vào thư mục <b>Applications</b>.</li>
+              <li>Mở Vsub. Lần đầu, Terminal hiện ra để cài thư viện; xong thì app tự mở.</li>
+              <li>FFmpeg chưa có thì vào tab “Thư viện” bấm <b>Cài đặt</b> (dùng Homebrew).</li>
+            </ol>
+            <p class="note">App chưa được Apple ký. Nếu macOS chặn: mở <b>Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật</b>, bấm <b>Vẫn mở</b>. Hoặc chạy
+              <code>xattr -dr com.apple.quarantine /Applications/Vsub.app</code></p>
+          </div>
+          <div class="card">
+            <h3>🪟 Windows</h3>
+            <ol>
+              <li>Tải <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-windows-amd64.zip">vsub-windows-amd64.zip</a>, giải nén ra một thư mục cố định (ví dụ <code>C:\vsub</code>).</li>
+              <li>Chạy <b>Vsub.cmd</b>. Lần đầu nó cài Python, thư viện và FFmpeg.</li>
+              <li>Xong sẽ có shortcut <b>vsub</b> trên Desktop và Start Menu, app tự mở.</li>
+            </ol>
+            <p class="note">Nếu Windows SmartScreen cảnh báo: bấm <b>More info → Run anyway</b> (Thông tin thêm → Vẫn chạy). Windows chạy Whisper bằng CPU nên chậm hơn Mac chip M.</p>
+          </div>
+        </div>
+        <div class="req">
+          <div><b>Mac</b>macOS 11 trở lên. Mac chip M chạy nhanh nhất (GPU).</div>
+          <div><b>Windows</b>Windows 10/11 64-bit. Whisper chạy bằng CPU.</div>
+          <div><b>Dịch</b>Cần <a href="https://claude.com/claude-code">Claude Code</a> đã đăng nhập tài khoản Claude.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hoi-dap" class="faq">
+      <div class="wrap">
+        <h2>Hỏi đáp</h2>
+        <p class="sub">Chưa thấy câu trả lời? Mở một issue trên <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/issues">GitHub</a>.</p>
+        <details><summary>vsub có mất phí không?</summary>
+          <p>vsub miễn phí. Nhận dạng giọng nói và thuyết minh chạy trên máy bạn. Riêng bước dịch dùng Claude qua Claude Code, nên cần tài khoản Claude
+            (gói của bạn quyết định giới hạn và chi phí). Không dịch thì không cần tài khoản.</p></details>
+        <details><summary>Audio của phim có bị gửi lên mạng không?</summary>
+          <p>Không. Whisper nhận dạng ngay trên máy. Khi dịch, chỉ phần chữ của phụ đề (và thông tin phim bạn tự điền) được gửi cho Claude.</p></details>
+        <details><summary>Hỗ trợ những ngôn ngữ nào?</summary>
+          <p>Whisper nhận dạng được hàng chục ngôn ngữ (Nhật, Hàn, Trung, Anh, Việt, Thái…). Claude dịch sang Tiếng Việt, English, 中文, 日本語, 한국어.
+            Thuyết minh hiện có tiếng Việt, 15 giọng đọc VieNeu-TTS chọn sẵn trong app (nam, nữ; Bắc, Trung, Nam).</p></details>
+        <details><summary>Một tập phim 45 phút mất bao lâu?</summary>
+          <p>Trên Mac M1 Max: nhận dạng khoảng 15–25 phút tuỳ model, dịch vài phút, thuyết minh khoảng 5 phút. Máy chạy CPU (Windows, Mac Intel) chậm hơn.</p></details>
+        <details><summary>Cập nhật bản mới thế nào?</summary>
+          <p>Có bản mới, app hiện banner báo ở đầu cửa sổ. Bấm <b>Cập nhật ngay</b> để app tự tải và thay bản cũ, hoặc <b>Tải thủ công</b> để tự tải gói mới.
+            Bạn cũng có thể bấm <b>Kiểm tra cập nhật</b> ở cuối cửa sổ bất cứ lúc nào.</p></details>
+        <details><summary>Dùng bằng dòng lệnh được không?</summary>
+          <p>Được: <code>vsub phim.mp4 --lang ja --to vi --dub</code>, <code>vsub translate phim.srt --to vi</code>, <code>vsub doctor</code>. Xem README trên GitHub.</p></details>
+      </div>
+    </section>
+
+    <section class="soft cta">
+      <div class="wrap">
+        <h2>Bắt đầu làm phụ đề ngay</h2>
+        <p class="sub" style="margin: 0 auto 8px">Tải về, kéo thả video, bấm một nút.</p>
+        <div class="dl">
+          <a class="dl-mac-2" href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-mac-universal.zip"><span>Tải cho macOS<small>Universal · chip M và Intel</small></span></a>
+          <a class="dl-win-2" href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest/download/vsub-windows-amd64.zip"><span>Tải cho Windows<small>Windows 10/11 · 64-bit</small></span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a class="by" href="https://viennv.dev"><img src="assets/viennv-64.png" alt="Logo viennv.dev" width="30" height="30">
+        <span>Phát triển bởi <b>viennv.dev</b></span></a>
+      <span>© <span id="year">2026</span> viennv.dev</span>
+      <div class="links">
+        <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai">GitHub</a>
+        <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/releases">Bản phát hành</a>
+        <a href="https://github.com/viennv96/vsub-auto-video-subtitle-with-ai/issues">Báo lỗi</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+    // nút tải đúng hệ điều hành của người xem được tô nổi
+    (function () {
+      var p = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "").toLowerCase();
+      var win = p.indexOf("win") >= 0, mac = p.indexOf("mac") >= 0;
+      if (win) { document.getElementById("dl-win").classList.add("primary"); document.querySelector(".dl-win-2").classList.add("primary"); }
+      else { document.getElementById("dl-mac").classList.add("primary"); document.querySelector(".dl-mac-2").classList.add("primary"); }
+    })();
+    // phiên bản mới nhất từ GitHub Releases
+    fetch("https://api.github.com/repos/viennv96/vsub-auto-video-subtitle-with-ai/releases/latest")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.tag_name) return;
+        var date = (d.published_at || "").slice(0, 10).split("-").reverse().join("/");
+        document.getElementById("ver").textContent = "Phiên bản " + d.tag_name.replace(/^v/, "") + (date ? " · " + date : "");
+      })
+      .catch(function () {});
+  </script>
+</body>
+</html>

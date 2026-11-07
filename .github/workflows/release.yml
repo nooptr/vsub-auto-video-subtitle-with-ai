@@ -1,0 +1,137 @@
+name: Kiểm thử & phát hành
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Cài FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Cài FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - name: Cài thư viện
+        run: uv sync --frozen --extra dev
+      - name: Chạy test
+        run: uv run --frozen pytest -q
+
+  version:
+    name: Tag khớp phiên bản
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PY=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          INIT=$(python3 -c 'import re; print(re.search(r"__version__ = \"(.+)\"", open("src/vsub/__init__.py").read()).group(1))')
+          echo "tag=$TAG pyproject=$PY __init__=$INIT"
+          if [ "$TAG" != "$PY" ] || [ "$TAG" != "$INIT" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME không khớp phiên bản trong pyproject.toml ($PY) / __init__.py ($INIT)"
+            exit 1
+          fi
+
+  build-mac:
+    name: Build macOS (universal)
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Đóng gói Vsub.app
+        run: bash scripts/build_mac.sh
+      - name: Thử cài như người dùng (lần mở đầu)
+        env:
+          VSUB_HOME: ${{ runner.temp }}/vsub-home
+          VSUB_NO_LAUNCH: "1"
+        run: |
+          mkdir -p "$RUNNER_TEMP/try"
+          ditto -x -k dist/vsub-mac-universal.zip "$RUNNER_TEMP/try"
+          bash "$RUNNER_TEMP/try/Vsub.app/Contents/Resources/setup.command"
+          "$VSUB_HOME/venv/bin/python" -c "import vsub, vsub.gui, vsub.dub, vsub.update, vsub.deps, mlx_whisper; print('ok', vsub.__version__)"
+          "$VSUB_HOME/venv/bin/python" -m vsub doctor || true
+          codesign -v "$RUNNER_TEMP/try/Vsub.app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsub-mac-universal
+          path: dist/vsub-mac-universal.zip
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (amd64)
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Đóng gói
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+      - name: Thử cài như người dùng (lần mở đầu)
+        shell: pwsh
+        env:
+          VSUB_HOME: ${{ runner.temp }}\vsub-home
+        run: |
+          Expand-Archive dist/vsub-windows-amd64.zip -DestinationPath "$env:RUNNER_TEMP\try"
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$env:RUNNER_TEMP\try\vsub\vsub.ps1" -Setup -NoLaunch
+          if ($LASTEXITCODE) { throw "vsub.ps1 lỗi ($LASTEXITCODE)" }
+          $py = Join-Path $env:VSUB_HOME 'venv\Scripts\python.exe'
+          & $py -c "import vsub, vsub.gui, vsub.dub, vsub.update, vsub.deps, faster_whisper, rapidocr_onnxruntime; print('ok', vsub.__version__)"
+          if ($LASTEXITCODE) { throw 'import lỗi' }
+          & $py -m vsub doctor
+          $ff = Join-Path $env:VSUB_HOME 'ffmpeg\bin\ffmpeg.exe'
+          if (-not (Test-Path $ff) -and -not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw 'thiếu ffmpeg' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsub-windows-amd64
+          path: dist/vsub-windows-amd64.zip
+          if-no-files-found: error
+
+  release:
+    name: Tạo GitHub Release
+    needs: [version, build-mac, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: vsub ${{ github.ref_name }}
+          files: |
+            dist/vsub-mac-universal.zip
+            dist/vsub-windows-amd64.zip
+          generate_release_notes: true
+          body: |
+            ## Tải về
+
+            | Máy | File | Cách cài |
+            |---|---|---|
+            | macOS 11+ (chip M và Intel) | `vsub-mac-universal.zip` | Giải nén, kéo **Vsub.app** vào Applications, mở app |
+            | Windows 10/11 64-bit | `vsub-windows-amd64.zip` | Giải nén ra một thư mục cố định, chạy **Vsub.cmd** |
+
+            Lần mở đầu, app tự cài Python và thư viện đúng cho máy (cần mạng, mất vài phút).
+            Đang dùng bản cũ: bấm **Cập nhật ngay** trên banner trong app, hoặc tải file ở trên giải nén đè lên.
+
+            Hướng dẫn đầy đủ: https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/

@@ -1,0 +1,42 @@
+[project]
+name = "vsub"
+version = "0.1.0"
+description = "Tự động làm phụ đề cho phim/video bằng Whisper (tối ưu cho Apple Silicon với MLX)"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy>=1.24",
+    # Silero VAD (ONNX) + backend dự phòng khi không có MLX
+    "faster-whisper>=1.1",
+    # dò phụ đề in sẵn trong video (model ONNX đi kèm gói)
+    "rapidocr-onnxruntime>=1.3",
+    # kéo thả file vào cửa sổ giao diện
+    "tkinterdnd2>=0.4",
+    # Backend chính trên Mac chip M
+    "mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+vsub = "vsub.cli:main"
+vsub-gui = "vsub.gui:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vsub = ["assets/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.uv]
+# Python do uv quản lý có sẵn Tkinter (Python của Homebrew thì không)
+python-preference = "only-managed"
