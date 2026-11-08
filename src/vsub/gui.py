@@ -33,7 +33,7 @@ ABOUT_TEXT = (
     "•  Thuyết minh tiếng Việt bằng VieNeu-TTS"
 )
 CREDITS = ("Dùng: OpenAI Whisper (mlx-whisper, faster-whisper), Silero VAD, RapidOCR, "
-           "Claude Code, VieNeu-TTS, FFmpeg.")
+           "Claude Code, VieNeu-TTS, FFmpeg, yt-dlp.")
 
 
 def open_site() -> None:
@@ -275,6 +275,17 @@ class App:
             root.bind_all(seq, lambda e: open_new_window())
         self.count_lbl = ttk.Label(row, text="Chưa chọn file nào")
         self.count_lbl.pack(side="left", padx=12)
+
+        # --- tải từ YouTube (.mp4 H.264, tối đa 1080p) vào ~/Downloads rồi thêm vào danh sách
+        urow = ttk.Frame(frm)
+        urow.pack(fill="x", pady=(8, 0))
+        ttk.Label(urow, text="Link YouTube:").pack(side="left")
+        self.url_var = tk.StringVar()
+        self.url_entry = ttk.Entry(urow, textvariable=self.url_var)
+        self.url_entry.pack(side="left", fill="x", expand=True, padx=8)
+        self.url_entry.bind("<Return>", lambda _e: self.download_url())
+        self.url_btn = ttk.Button(urow, text="Tải video", command=self.download_url)
+        self.url_btn.pack(side="left")
 
         self.listbox = tk.Listbox(frm, height=5, activestyle="none")
         self.listbox.pack(fill="x", pady=(10, 12))
@@ -536,6 +547,31 @@ class App:
         for p in filedialog.askopenfilenames(title="Chọn video", initialdir=start, filetypes=FILE_TYPES):
             self.add(p, refresh=False)
         self.refresh_files()
+
+    def download_url(self) -> None:
+        """Tải video YouTube trong luồng nền; xong thì thêm vào danh sách như file chọn tay."""
+        from .youtube import is_youtube_url
+
+        url = self.url_var.get().strip()
+        if not url:
+            self.url_entry.focus_set()
+            return
+        if not is_youtube_url(url):
+            messagebox.showwarning("Link không hợp lệ",
+                                   "Hãy dán link một video YouTube, ví dụ:\n"
+                                   "https://www.youtube.com/watch?v=…\nhttps://youtu.be/…")
+            return
+        if self.worker and self.worker.is_alive():
+            return
+        if not self.ensure_required():
+            return
+        self.cancel.clear()
+        self.errors.clear()
+        self.set_running(True)
+        self.bar.config(value=0)
+        self.write(f"\n⇣ Tải từ YouTube: {url}")
+        self.worker = threading.Thread(target=self.work_download, args=(url,), daemon=True)
+        self.worker.start()
 
     def clear(self) -> None:
         if self.worker and self.worker.is_alive():
@@ -933,6 +969,8 @@ class App:
         self.stop_btn.config(state="normal" if running else "disabled")
         for w in (self.lang, self.model, self.position, self.target, self.claude_model, self.film):
             w.config(state="disabled" if running else "readonly")
+        for w in (self.url_entry, self.url_btn):
+            w.config(state="disabled" if running else "normal")
         self.sync_dub()
         # hồ sơ đang được luồng nền ghi -> khoá các ô cho tới khi chạy xong
         for w in (*self.info_inputs, self.refs, self.ref_add, self.ref_del):
@@ -1015,6 +1053,29 @@ class App:
             finally:
                 release_video(lock)
         self.emit("finished")
+
+    def work_download(self, url: str) -> None:
+        from .youtube import Cancelled as DownloadCancelled
+        from .youtube import download
+
+        last = [0.0]
+
+        def progress(done, total, speed, eta, part):
+            if time.time() - last[0] >= 0.25:
+                last[0] = time.time()
+                self.emit("yprogress", done, total, speed, eta, part)
+
+        try:
+            path = download(url, status=lambda m: self.emit("log", "  " + m), progress=progress,
+                            cancel=self.cancel)
+        except DownloadCancelled:
+            self.emit("cancelled")
+            return
+        except Exception as e:  # noqa: BLE001 — DownloadError đã là câu tiếng Việt
+            traceback.print_exc()
+            self.emit("yfail", str(e) or e.__class__.__name__)
+            return
+        self.emit("ydone", path)
 
     def work_dub(self, files: list[str], voice: str, duck: float | None) -> None:
         from .translate import translated_path
@@ -1176,6 +1237,26 @@ class App:
             self.stage.config(text=f"Đang tải bản mới: {d / 1e6:.1f}" + (f" / {n / 1e6:.1f} MB" if n else " MB"))
         elif kind == "udone":
             self.on_update_done(*a)
+        elif kind == "yprogress":
+            done, total, speed, eta, part = a
+            if total:
+                self.bar.config(value=100 * done / total)
+            size = f"{done / 1e6:.1f}" + (f" / {total / 1e6:.1f} MB" if total else " MB")
+            extra = (f" — {speed / 1e6:.1f} MB/s" if speed else "") + (f" — còn {_fmt(eta)}" if eta else "")
+            self.stage.config(text=f"Đang tải {part}: {size}{extra}")
+        elif kind == "ydone":
+            path = a[0]
+            self.set_running(False)
+            self.url_var.set("")
+            self.bar.config(value=100)
+            self.add(path)
+            self.stage.config(text="Đã tải xong — bấm ▶ Tạo phụ đề để làm tiếp.")
+            self.write(f"✔ Đã tải {os.path.basename(path)} (ở {os.path.dirname(path)})")
+        elif kind == "yfail":
+            self.set_running(False)
+            self.stage.config(text="Không tải được video (xem log bên dưới).")
+            self.write("✘ " + a[0].replace("\n", "\n  "))
+            messagebox.showerror("Không tải được video", a[0])
         elif kind == "deps":
             self.show_deps(a[0])
         elif kind == "dstart":

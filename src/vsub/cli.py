@@ -1,6 +1,7 @@
 """Giao diện dòng lệnh.
 
   vsub phim.mp4                         # tạo phim.srt cạnh video
+  vsub "https://youtu.be/…" --to vi     # tải video YouTube về ~/Downloads rồi làm như file thường
   vsub phim.mp4 --lang vi --embed       # + xuất phim.sub.mp4 có phụ đề mềm
   vsub phim.mp4 --burn                  # + in cứng phụ đề lên hình
   vsub reflow phim.transcript.json      # chia dòng lại, không cần nhận dạng lại
@@ -176,6 +177,28 @@ def _do_dub(video: str, subs: str, a, out: str | None = None) -> str:
     return r.out
 
 
+def _download(url: str, out_dir: str | None) -> str:
+    from .youtube import Cancelled, DownloadError, download
+
+    shown: dict[str, int] = {}
+
+    def progress(done: int, total: int, _speed, _eta, part: str) -> None:
+        pct = int(100 * done / total) if total else 0
+        if pct // 10 != shown.get(part, -1):
+            shown[part] = pct // 10
+            print(f"  tải {part}: {pct}%", file=sys.stderr, flush=True)
+
+    try:
+        path = download(url, out_dir, status=lambda m: print("• " + m, file=sys.stderr, flush=True),
+                        progress=progress)
+    except Cancelled:
+        raise KeyboardInterrupt from None
+    except DownloadError as e:
+        raise RuntimeError(str(e)) from e
+    print(f"✔ Video: {path}")
+    return path
+
+
 def cmd_run(a) -> None:
     from .audio import require_ffmpeg
     from .backends import TranscribeOptions, make_backend
@@ -183,6 +206,10 @@ def cmd_run(a) -> None:
     from .pipeline import Transcript, check_hardsubs, make_cues, resolve_position, transcribe_video
 
     require_ffmpeg()
+    from .youtube import is_youtube_url
+
+    if is_youtube_url(a.video):
+        a.video = _download(a.video, a.download_dir)
     video = os.path.abspath(a.video)
     if not os.path.exists(video):
         sys.exit(f"Không thấy file: {video}")
@@ -308,7 +335,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="nhận dạng giọng nói và tạo phụ đề (mặc định)")
-    r.add_argument("video")
+    r.add_argument("video", help="file video, hoặc link video YouTube (tải về .mp4 H.264, tối đa 1080p)")
+    r.add_argument("--download-dir", help="thư mục lưu video tải từ YouTube (mặc định ~/Downloads)")
     r.add_argument("-o", "--output", help="file phụ đề xuất ra (.srt hoặc .vtt)")
     r.add_argument("-l", "--lang", help="mã ngôn ngữ của phim: vi, en, zh, ko, ja... (bỏ trống = tự nhận)")
     r.add_argument("-m", "--model", default="large-v3-turbo", help="tiny/base/small/medium/large-v3/large-v3-turbo hoặc repo HF")

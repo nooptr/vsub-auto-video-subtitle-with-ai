@@ -83,6 +83,10 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
 4. Nếu muốn, mở tab **Thông tin phim** và điền cho từng phim (xem mục
    [Hồ sơ phim](#hồ-sơ-phim-phim-nhiều-tập)): nội dung phim, link liên quan, tệp đã dịch,
    xưng hô, tên riêng
+   Video trên YouTube: dán link vào ô **Link YouTube** rồi bấm **Tải video** (hoặc Enter). App tải bản
+   `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào thư mục **Downloads**,
+   rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
+   trình duyệt thì cập nhật yt-dlp theo lệnh app ghi trong log.
 5. Bấm **▶ Tạo phụ đề**. Kết quả nằm cùng thư mục với video:
    - `tên-video.srt`: phụ đề theo ngôn ngữ gốc
    - `tên-video.vi.srt`: bản dịch (IINA, VLC, Infuse tự nhận cả hai file)
@@ -95,6 +99,10 @@ nhưng đừng di chuyển hay đổi tên thư mục project (app gọi vào đ
 ```bash
 # Tạo phim.srt cạnh video (tự nhận ngôn ngữ)
 uv run vsub "phim.mp4"
+
+# Video YouTube: tải về ~/Downloads (.mp4 H.264, tối đa 1080p) rồi làm như file thường
+uv run vsub "https://youtu.be/VIDEO_ID" --to vi --dub
+uv run vsub "https://www.youtube.com/watch?v=VIDEO_ID" --download-dir ~/Movies
 
 # Chỉ định ngôn ngữ (chính xác hơn, khỏi bước đoán)
 uv run vsub "phim.mp4" --lang ja
