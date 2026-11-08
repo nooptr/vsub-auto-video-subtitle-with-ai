@@ -17,6 +17,10 @@ IN    ?=
 ARGS  ?=
 VOICE ?= Trúc Ly
 LANG_SRC ?=
+COOKIES ?=
+
+# --cookies-from-browser chỉ thêm khi có COOKIES (trình duyệt lấy cookie YouTube khi bị chặn)
+cookie_flag = $(if $(COOKIES),--cookies-from-browser $(COOKIES))
 
 # --lang chỉ thêm khi có LANG_SRC (bỏ trống = tự nhận ngôn ngữ)
 lang_flag = $(if $(LANG_SRC),--lang $(LANG_SRC))
@@ -49,7 +53,7 @@ help: ## Hiện danh sách lệnh
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo
-	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), ARGS (tuỳ chọn thêm)"
+	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), COOKIES (chrome, firefox… khi YouTube chặn), ARGS (tuỳ chọn thêm)"
 
 # ---------------------------------------------------------------- cài đặt
 
@@ -79,19 +83,19 @@ gui: ## Mở giao diện
 
 sub: ## Tạo phụ đề gốc (.srt)  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) $(ARGS)
 
 vi: ## Tạo phụ đề + dịch sang tiếng Việt  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) --to vi $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi $(ARGS)
 
 dub-new: ## Phụ đề + dịch + thuyết minh giọng có sẵn  <video|link> [VOICE=...]
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) --to vi --dub --voice "$(VOICE)" $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice "$(VOICE)" $(ARGS)
 
 clone: ## Phụ đề + dịch + thuyết minh giọng clone  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) --to vi --dub --voice clone $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice clone $(ARGS)
 
 dub: ## Chỉ thuyết minh từ <tên>.vi.srt có sẵn  <video> [VOICE=...]
 	$(need_in)

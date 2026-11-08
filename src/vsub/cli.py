@@ -181,7 +181,20 @@ def _do_dub(video: str, subs: str, a, out: str | None = None) -> str:
     return r.out
 
 
-def _download(url: str, out_dir: str | None) -> str:
+def _cookies_browser(flag: str | None) -> str | None:
+    """--cookies-from-browser > biến VSUB_YT_COOKIES > lựa chọn đã lưu trong giao diện. "none" = tắt."""
+    val = flag or os.environ.get("VSUB_YT_COOKIES")
+    if val is None:
+        try:
+            from .gui import load_settings
+
+            val = load_settings().get("yt_cookies")
+        except Exception:  # noqa: BLE001
+            val = None
+    return None if (val or "").lower() in ("", "none", "no", "off") else val.lower()
+
+
+def _download(url: str, out_dir: str | None, cookies: str | None = None) -> str:
     from .youtube import Cancelled, DownloadError, download
 
     shown: dict[str, int] = {}
@@ -194,7 +207,7 @@ def _download(url: str, out_dir: str | None) -> str:
 
     try:
         path = download(url, out_dir, status=lambda m: print("• " + m, file=sys.stderr, flush=True),
-                        progress=progress)
+                        progress=progress, cookies_from=cookies)
     except Cancelled:
         raise KeyboardInterrupt from None
     except DownloadError as e:
@@ -213,7 +226,7 @@ def cmd_run(a) -> None:
     from .youtube import is_youtube_url
 
     if is_youtube_url(a.video):
-        a.video = _download(a.video, a.download_dir)
+        a.video = _download(a.video, a.download_dir, _cookies_browser(a.cookies_from_browser))
     video = os.path.abspath(a.video)
     if not os.path.exists(video):
         sys.exit(f"Không thấy file: {video}")
@@ -341,6 +354,9 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("run", help="nhận dạng giọng nói và tạo phụ đề (mặc định)")
     r.add_argument("video", help="file video, hoặc link video YouTube (tải về .mp4 H.264, tối đa 1080p)")
     r.add_argument("--download-dir", help="thư mục lưu video tải từ YouTube (mặc định ~/Downloads)")
+    r.add_argument("--cookies-from-browser", metavar="BROWSER",
+                   help="khi YouTube đòi xác minh, lấy cookie YouTube từ trình duyệt này: chrome, firefox, brave, "
+                        "safari, edge (mặc định: biến VSUB_YT_COOKIES hoặc lựa chọn trong giao diện; none = tắt)")
     r.add_argument("-o", "--output", help="file phụ đề xuất ra (.srt hoặc .vtt)")
     r.add_argument("-l", "--lang", help="mã ngôn ngữ của phim: vi, en, zh, ko, ja... (bỏ trống = tự nhận)")
     r.add_argument("-m", "--model", default="large-v3-turbo", help="tiny/base/small/medium/large-v3/large-v3-turbo hoặc repo HF")

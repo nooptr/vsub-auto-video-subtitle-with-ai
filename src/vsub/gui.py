@@ -286,6 +286,16 @@ class App:
         self.url_entry.bind("<Return>", lambda _e: self.download_url())
         self.url_btn = ttk.Button(urow, text="Tải video", command=self.download_url)
         self.url_btn.pack(side="left")
+        from .youtube import BROWSERS
+
+        ttk.Label(urow, text="Cookie:").pack(side="left", padx=(12, 4))
+        self.cookies = ttk.Combobox(urow, state="readonly", width=10, values=[n for n, _ in BROWSERS])
+        keys = [k for _, k in BROWSERS]
+        saved = load_settings().get("yt_cookies")
+        self.cookies.current(keys.index(saved) if saved in keys else 0)
+        self.cookies.pack(side="left")
+        self.cookies.bind("<<ComboboxSelected>>", lambda _e: save_settings(
+            {**load_settings(), "yt_cookies": BROWSERS[self.cookies.current()][1]}))
 
         self.listbox = tk.Listbox(frm, height=5, activestyle="none")
         self.listbox.pack(fill="x", pady=(10, 12))
@@ -570,7 +580,10 @@ class App:
         self.set_running(True)
         self.bar.config(value=0)
         self.write(f"\n⇣ Tải từ YouTube: {url}")
-        self.worker = threading.Thread(target=self.work_download, args=(url,), daemon=True)
+        from .youtube import BROWSERS
+
+        cookies = BROWSERS[self.cookies.current()][1]
+        self.worker = threading.Thread(target=self.work_download, args=(url, cookies), daemon=True)
         self.worker.start()
 
     def clear(self) -> None:
@@ -971,6 +984,7 @@ class App:
             w.config(state="disabled" if running else "readonly")
         for w in (self.url_entry, self.url_btn):
             w.config(state="disabled" if running else "normal")
+        self.cookies.config(state="disabled" if running else "readonly")
         self.sync_dub()
         # hồ sơ đang được luồng nền ghi -> khoá các ô cho tới khi chạy xong
         for w in (*self.info_inputs, self.refs, self.ref_add, self.ref_del):
@@ -1054,7 +1068,7 @@ class App:
                 release_video(lock)
         self.emit("finished")
 
-    def work_download(self, url: str) -> None:
+    def work_download(self, url: str, cookies: str | None = None) -> None:
         from .youtube import Cancelled as DownloadCancelled
         from .youtube import download
 
@@ -1067,7 +1081,7 @@ class App:
 
         try:
             path = download(url, status=lambda m: self.emit("log", "  " + m), progress=progress,
-                            cancel=self.cancel)
+                            cancel=self.cancel, cookies_from=cookies)
         except DownloadCancelled:
             self.emit("cancelled")
             return

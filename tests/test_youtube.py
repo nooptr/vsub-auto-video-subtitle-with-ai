@@ -68,3 +68,70 @@ def test_progress_hook_reports_and_cancels(tmp_path):
 ])
 def test_explains_errors_in_vietnamese(raw, expect):
     assert expect in youtube.explain_error(raw)
+
+
+@pytest.mark.parametrize("raw, expect", [
+    ("ERROR: [youtube] x: Sign in to confirm you’re not a bot. Use --cookies-from-browser", True),
+    ("ERROR: [youtube] x: Sign in to confirm your age.", True),
+    ("ERROR: [youtube] x: This video requires login (LOGIN_REQUIRED)", True),
+    ("ERROR: [youtube] x: Video unavailable", False),
+    ("ERROR: [youtube] x: Private video", False),
+])
+def test_needs_login(raw, expect):
+    assert youtube.needs_login(raw) is expect
+
+
+def test_bot_error_suggests_browser_cookies():
+    msg = youtube.explain_error("ERROR: Sign in to confirm you’re not a bot")
+    assert "cookie" in msg.lower() and "--cookies-from-browser" in msg
+
+
+class _FakeYDL:
+    """Giả yt_dlp.YoutubeDL: lần không có cookie bị chặn, có cookie thì tải được."""
+    calls: list = []
+
+    def __init__(self, opts):
+        self.opts = opts
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def extract_info(self, url, download=False):
+        _FakeYDL.calls.append(self.opts.get("cookiesfrombrowser"))
+        if not self.opts.get("cookiesfrombrowser"):
+            import yt_dlp
+            raise yt_dlp.utils.DownloadError("ERROR: [youtube] x: Sign in to confirm you’re not a bot")
+        return {"title": "Phim", "height": 1080}
+
+    def process_ie_result(self, info, download=True):
+        out = self.opts["outtmpl"]["default"].replace("%(title).150B.%(ext)s", "Phim.mp4")
+        open(out, "wb").close()
+        return {**info, "requested_downloads": [{"filepath": out}]}
+
+
+def test_download_retries_with_browser_cookies_when_blocked(tmp_path, monkeypatch):
+    import yt_dlp
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", _FakeYDL)
+    monkeypatch.setattr(youtube.shutil, "which", lambda name: "/usr/bin/" + name)
+    _FakeYDL.calls = []
+    said = []
+    path = youtube.download("https://youtu.be/aqz-KE-bpKQ", str(tmp_path), status=said.append,
+                            cookies_from="chrome")
+    assert path == str(tmp_path / "Phim.mp4")
+    assert _FakeYDL.calls == [None, ("chrome",)]
+    assert any("Chrome" in m for m in said)
+
+
+def test_download_without_cookies_explains_how_to_fix(tmp_path, monkeypatch):
+    import yt_dlp
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", _FakeYDL)
+    monkeypatch.setattr(youtube.shutil, "which", lambda name: "/usr/bin/" + name)
+    _FakeYDL.calls = []
+    with pytest.raises(youtube.DownloadError, match="cookie"):
+        youtube.download("https://youtu.be/aqz-KE-bpKQ", str(tmp_path))
+    assert _FakeYDL.calls == [None]

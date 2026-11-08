@@ -89,6 +89,12 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
    `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào thư mục **Downloads**,
    rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
    trình duyệt thì cập nhật yt-dlp theo lệnh app ghi trong log.
+
+   YouTube báo **"Sign in to confirm you're not a bot"** (thường khi một IP tải nhiều): chọn trình duyệt bạn
+   đã đăng nhập YouTube ở ô **Cookie** cạnh nút Tải video (Chrome, Firefox, Brave, Safari, Edge). App vẫn tải
+   không cookie trước, chỉ khi YouTube chặn mới thử lại bằng cookie YouTube của trình duyệt đó. Lần đầu với
+   Chrome / Brave / Edge, macOS hỏi quyền Keychain ("Chrome Safe Storage"): chọn **Cho phép**. Safari cần cấp
+   quyền Full Disk Access.
 2. Chọn ngôn ngữ trong phim (để "Tự nhận diện" cũng được)
 3. Chọn **Dịch bằng Claude sang** (mặc định Tiếng Việt) hoặc "Không dịch"
 4. Nếu muốn, mở tab **Thông tin phim** và điền cho từng phim (xem mục
@@ -114,6 +120,8 @@ uv run vsub "phim.mp4"
 # Video YouTube: tải về ~/Downloads (.mp4 H.264, tối đa 1080p) rồi làm như file thường
 uv run vsub "https://youtu.be/VIDEO_ID" --to vi --dub
 uv run vsub "https://www.youtube.com/watch?v=VIDEO_ID" --download-dir ~/Movies
+uv run vsub "https://youtu.be/VIDEO_ID" --cookies-from-browser chrome   # khi YouTube đòi xác minh bot
+# đặt một lần trong ~/.zshrc thay cho gõ mỗi lần:  export VSUB_YT_COOKIES=chrome
 
 # Chỉ định ngôn ngữ (chính xác hơn, khỏi bước đoán)
 uv run vsub "phim.mp4" --lang ja
@@ -159,6 +167,7 @@ Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `ma
 
 `<video>` là file video hoặc link YouTube, ghi ngay sau tên lệnh (đường dẫn có khoảng trắng thì để trong
 dấu nháy). Biến thêm: `LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
+`COOKIES` là trình duyệt lấy cookie khi YouTube chặn (hoặc `export VSUB_YT_COOKIES=chrome` một lần),
 `ARGS` là tuỳ chọn thêm cho `vsub`. Cách cũ `IN="…"` vẫn dùng được.
 
 ```bash

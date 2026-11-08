@@ -32,6 +32,20 @@ _URL_RE = re.compile(
 
 ProgressFn = Callable[[int, int, "float | None", "float | None", str], None]
 
+# Trình duyệt để lấy cookie YouTube khi YouTube đòi đăng nhập / xác minh "không phải bot"
+BROWSERS = [
+    ("Không dùng", None),
+    ("Chrome", "chrome"),
+    ("Firefox", "firefox"),
+    ("Brave", "brave"),
+    ("Safari", "safari"),
+    ("Edge", "edge"),
+]
+
+
+def browser_name(key: str | None) -> str:
+    return next((n for n, k in BROWSERS if k == key), key or "")
+
 
 class Cancelled(Exception):
     pass
@@ -54,7 +68,18 @@ def update_hint() -> str:
     return f'uv pip install -U yt-dlp --python "{sys.executable}"'
 
 
-def explain_error(msg: str) -> str:
+def needs_login(msg: str) -> bool:
+    """YouTube đòi đăng nhập (xác minh bot, giới hạn tuổi…): thử lại bằng cookie trình duyệt có thể qua."""
+    low = msg.lower()
+    return "not a bot" in low or "sign in to confirm" in low or "login_required" in low or "requires login" in low
+
+
+COOKIE_HINT = ("Cách khắc phục: chọn trình duyệt bạn đã đăng nhập YouTube ở ô “Cookie” cạnh nút Tải video "
+               "(dòng lệnh: --cookies-from-browser chrome, hoặc đặt biến VSUB_YT_COOKIES=chrome). "
+               "App chỉ dùng cookie khi YouTube chặn.")
+
+
+def explain_error(msg: str, tried_cookies: str | None = None) -> str:
     """Lỗi của yt-dlp -> câu tiếng Việt dễ hiểu."""
     low = msg.lower()
     if "private video" in low:
@@ -62,7 +87,7 @@ def explain_error(msg: str) -> str:
     elif "confirm your age" in low or "age-restricted" in low or "inappropriate for some users" in low:
         why = "Video giới hạn tuổi, YouTube bắt đăng nhập mới cho tải."
     elif "not a bot" in low:
-        why = "YouTube nghi là máy tải tự động. Đợi một lúc rồi thử lại, hoặc cập nhật yt-dlp."
+        why = "YouTube nghi là máy tải tự động (thường do IP này tải nhiều) và đòi đăng nhập."
     elif "members-only" in low or "join this channel" in low:
         why = "Video chỉ dành cho hội viên của kênh."
     elif "live event will begin" in low or "premieres in" in low:
@@ -74,6 +99,11 @@ def explain_error(msg: str) -> str:
     else:
         detail = re.sub(r"^ERROR:\s*", "", msg.strip()).splitlines()[0][:300] if msg.strip() else "lỗi không rõ"
         why = f"Không tải được: {detail}"
+    if needs_login(msg):
+        if tried_cookies:
+            return (f"{why}\nĐã thử cookie của {browser_name(tried_cookies)} nhưng vẫn bị chặn: hãy mở YouTube "
+                    f"trong {browser_name(tried_cookies)}, kiểm tra đã đăng nhập, xem thử một video rồi tải lại.")
+        return f"{why}\n{COOKIE_HINT}"
     return f"{why}\nNếu video vẫn xem được trên trình duyệt, thử cập nhật yt-dlp:\n  {update_hint()}"
 
 
@@ -98,7 +128,8 @@ class _Logger:
     info = debug
 
     def warning(self, msg: str) -> None:
-        if self.status and "javascript runtime" not in msg.lower():
+        low = msg.lower()
+        if self.status and "javascript runtime" not in low and "no title found in player" not in low:
             self.status("! " + msg.strip()[:300])
 
     def error(self, msg: str) -> None:
@@ -150,9 +181,12 @@ def download(
     status: Callable[[str], None] | None = None,
     progress: ProgressFn | None = None,
     cancel: threading.Event | None = None,
+    cookies_from: str | None = None,
 ) -> str:
     """Tải video về out_dir (mặc định ~/Downloads). Trả về đường dẫn file .mp4.
-    Đã có file cùng tên thì dùng lại, không tải lại."""
+    Đã có file cùng tên thì dùng lại, không tải lại.
+    cookies_from: trình duyệt (chrome, firefox…) để lấy cookie YouTube — chỉ dùng khi YouTube đòi
+    đăng nhập / xác minh bot, lần đầu luôn tải không cookie."""
     import yt_dlp
 
     url = url.strip()
@@ -164,8 +198,12 @@ def download(
     os.makedirs(out_dir, exist_ok=True)
     say = status or (lambda _m: None)
     say("Đọc thông tin video YouTube…")
-    try:
-        with yt_dlp.YoutubeDL(ydl_options(out_dir, status, progress, cancel)) as ydl:
+
+    def attempt(cookies: str | None) -> dict:
+        opts = ydl_options(out_dir, status, progress, cancel)
+        if cookies:
+            opts["cookiesfrombrowser"] = (cookies,)
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if cancel and cancel.is_set():
                 raise Cancelled()
@@ -173,13 +211,34 @@ def download(
                 raise DownloadError("Video đang phát trực tiếp — đợi phát xong rồi tải.")
             h = info.get("height")
             say(f"“{info.get('title')}” — {h}p" if h else f"“{info.get('title')}”")
-            info = ydl.process_ie_result(info, download=True)
-    except Cancelled:
-        raise
+            return ydl.process_ie_result(info, download=True)
+
+    def cancelled(e: Exception) -> bool:
+        ei = getattr(e, "exc_info", None)
+        return bool(ei) and isinstance(ei[1], Cancelled)
+
+    try:
+        info = attempt(None)
     except yt_dlp.utils.DownloadError as e:
-        if isinstance(getattr(e, "exc_info", (None, None))[1], Cancelled):
+        if cancelled(e):
             raise Cancelled() from None
-        raise DownloadError(explain_error(str(e))) from None
+        if not (cookies_from and needs_login(str(e))):
+            raise DownloadError(explain_error(str(e))) from None
+        name = browser_name(cookies_from)
+        say(f"YouTube đòi xác minh — thử lại bằng cookie YouTube của {name}"
+            + (" (macOS có thể hỏi quyền Keychain, chọn Cho phép)…" if cookies_from in ("chrome", "brave", "edge")
+               else "…"))
+        try:
+            info = attempt(cookies_from)
+        except yt_dlp.utils.DownloadError as e2:
+            if cancelled(e2):
+                raise Cancelled() from None
+            raise DownloadError(explain_error(str(e2), tried_cookies=cookies_from)) from None
+        except (Cancelled, DownloadError):
+            raise
+        except Exception as e2:  # noqa: BLE001 — không đọc được cookie (chưa cài, từ chối Keychain…)
+            raise DownloadError(f"Không đọc được cookie của {name}: {e2}\n"
+                                f"Kiểm tra {name} đã cài và đã đăng nhập YouTube, hoặc chọn trình duyệt khác.") from None
     path = ((info.get("requested_downloads") or [{}])[0].get("filepath")
             or os.path.splitext(yt_dlp.YoutubeDL(ydl_options(out_dir)).prepare_filename(info))[0] + ".mp4")
     if not os.path.isfile(path):
