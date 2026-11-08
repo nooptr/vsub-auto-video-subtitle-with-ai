@@ -2,10 +2,11 @@
 #
 # Ví dụ:
 #   make gui
-#   make sub IN="phim.mp4"
-#   make vi IN="https://youtu.be/VIDEO_ID"
-#   make clone IN="~/Downloads/phim.mp4"
-#   make dub IN="phim.mp4" VOICE="Thiện Minh"
+#   make sub phim.mp4
+#   make vi "https://www.youtube.com/watch?v=VIDEO_ID"
+#   make clone ~/Downloads/phim.mp4
+#   make dub phim.mp4 VOICE="Thiện Minh"
+#   make vi IN="phim.mp4"          # cách cũ vẫn dùng được
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -20,23 +21,35 @@ LANG_SRC ?=
 # --lang chỉ thêm khi có LANG_SRC (bỏ trống = tự nhận ngôn ngữ)
 lang_flag = $(if $(LANG_SRC),--lang $(LANG_SRC))
 
+# Cho phép ghi thẳng video / link sau tên lệnh:  make clone https://youtu.be/VIDEO_ID
+# Các từ sau tên lệnh được ghép lại thành IN, và không bị make hiểu là lệnh khác.
+RUN_GOALS := sub vi dub-new clone dub dub-clone
+ifneq ($(filter $(firstword $(MAKECMDGOALS)),$(RUN_GOALS)),)
+  POS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  ifneq ($(POS),)
+    IN := $(POS)
+  endif
+  %::
+	@:
+endif
+
 # IN đi qua biến môi trường để giữ nguyên khoảng trắng; "~/..." được đổi thành $HOME/...
 export IN
 in := "$${IN/\#\~/$$HOME}"
 
 define need_in
-	@if [ -z "$$IN" ]; then echo 'Thiếu IN: file video hoặc link YouTube, ví dụ  make $@ IN="phim.mp4"'; exit 1; fi
+	@if [ -z "$$IN" ]; then echo 'Thiếu video: ghi file video hoặc link YouTube sau tên lệnh, ví dụ  make $@ phim.mp4'; exit 1; fi
 endef
 
 .PHONY: help setup sync dev gui sub vi dub-new clone dub dub-clone doctor install-vieneu \
         test build-mac build-win update-ytdlp clean
 
 help: ## Hiện danh sách lệnh
-	@echo "Dùng: make <lệnh> [IN=...] [ARGS=...]"
+	@echo "Dùng: make <lệnh> [video | link YouTube] [VOICE=...] [LANG_SRC=...] [ARGS=...]"
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo
-	@echo "Biến: IN (video / link YouTube), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), ARGS (tuỳ chọn thêm)"
+	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), ARGS (tuỳ chọn thêm)"
 
 # ---------------------------------------------------------------- cài đặt
 
@@ -64,27 +77,27 @@ update-ytdlp: ## Cập nhật yt-dlp khi YouTube đổi cách chặn
 gui: ## Mở giao diện
 	$(UV) run vsub-gui
 
-sub: ## Tạo phụ đề gốc (.srt)  IN=video|link
+sub: ## Tạo phụ đề gốc (.srt)  <video|link>
 	$(need_in)
 	$(VSUB) $(in) $(lang_flag) $(ARGS)
 
-vi: ## Tạo phụ đề + dịch sang tiếng Việt  IN=video|link
+vi: ## Tạo phụ đề + dịch sang tiếng Việt  <video|link>
 	$(need_in)
 	$(VSUB) $(in) $(lang_flag) --to vi $(ARGS)
 
-dub-new: ## Phụ đề + dịch + thuyết minh giọng có sẵn  IN=video|link [VOICE=...]
+dub-new: ## Phụ đề + dịch + thuyết minh giọng có sẵn  <video|link> [VOICE=...]
 	$(need_in)
 	$(VSUB) $(in) $(lang_flag) --to vi --dub --voice "$(VOICE)" $(ARGS)
 
-clone: ## Phụ đề + dịch + thuyết minh giọng clone  IN=video|link
+clone: ## Phụ đề + dịch + thuyết minh giọng clone  <video|link>
 	$(need_in)
 	$(VSUB) $(in) $(lang_flag) --to vi --dub --voice clone $(ARGS)
 
-dub: ## Chỉ thuyết minh từ <tên>.vi.srt có sẵn  IN=video [VOICE=...]
+dub: ## Chỉ thuyết minh từ <tên>.vi.srt có sẵn  <video> [VOICE=...]
 	$(need_in)
 	$(VSUB) dub $(in) --voice "$(VOICE)" $(ARGS)
 
-dub-clone: ## Chỉ thuyết minh từ .vi.srt bằng giọng clone  IN=video
+dub-clone: ## Chỉ thuyết minh từ .vi.srt bằng giọng clone  <video>
 	$(need_in)
 	$(VSUB) dub $(in) --voice clone $(ARGS)
 

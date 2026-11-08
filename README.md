@@ -148,24 +148,28 @@ Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `ma
 | `make doctor` / `make install-vieneu` | Kiểm tra thành phần / cài VieNeu-TTS |
 | `make update-ytdlp` | Cập nhật yt-dlp khi YouTube đổi cách chặn |
 | `make gui` | Mở giao diện |
-| `make sub IN=…` | Tạo phụ đề gốc (`.srt`) |
-| `make vi IN=…` | Tạo phụ đề và dịch sang tiếng Việt |
-| `make dub-new IN=… VOICE=…` | Phụ đề, dịch và thuyết minh bằng giọng có sẵn |
-| `make clone IN=…` | Phụ đề, dịch và thuyết minh bằng giọng clone |
-| `make dub IN=…` / `make dub-clone IN=…` | Chỉ thuyết minh từ `tên-video.vi.srt` có sẵn |
+| `make sub <video>` | Tạo phụ đề gốc (`.srt`) |
+| `make vi <video>` | Tạo phụ đề và dịch sang tiếng Việt |
+| `make dub-new <video> VOICE=…` | Phụ đề, dịch và thuyết minh bằng giọng có sẵn |
+| `make clone <video>` | Phụ đề, dịch và thuyết minh bằng giọng clone |
+| `make dub <video>` / `make dub-clone <video>` | Chỉ thuyết minh từ `tên-video.vi.srt` có sẵn |
 | `make test` | Chạy test |
 | `make build-mac` / `make build-win` | Đóng gói bản phát hành |
 | `make clean` | Xoá `dist/`, `__pycache__`, `*.egg-info` |
 
-Biến: `IN` là file video hoặc link YouTube (đường dẫn có khoảng trắng hay `~/…` đều được),
-`LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
-`ARGS` là tuỳ chọn thêm cho `vsub`.
+`<video>` là file video hoặc link YouTube, ghi ngay sau tên lệnh (đường dẫn có khoảng trắng thì để trong
+dấu nháy). Biến thêm: `LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
+`ARGS` là tuỳ chọn thêm cho `vsub`. Cách cũ `IN="…"` vẫn dùng được.
 
 ```bash
-make clone IN="https://youtu.be/VIDEO_ID"
-make vi IN="~/Downloads/phim.mp4" LANG_SRC=ja
-make dub IN="phim.mp4" VOICE="Thiện Minh" ARGS="--duck-db 15"
+make clone "https://www.youtube.com/watch?v=VIDEO_ID"
+make clone https://youtu.be/VIDEO_ID
+make vi ~/Downloads/phim.mp4 LANG_SRC=ja
+make dub "phim tập 1.mp4" VOICE="Thiện Minh" ARGS="--duck-db 15"
 ```
+
+Trên zsh (mặc định của macOS), link có dấu `?` (`watch?v=…`) phải để trong dấu nháy, nếu không zsh báo
+`no matches found`. Muốn khỏi gõ dấu nháy thì thêm `alias make='noglob make'` vào `~/.zshrc`.
 
 ## Claude đọc thêm (mặc định tắt)
 
