@@ -208,6 +208,13 @@ Thuyết minh là **tuỳ chọn, mặc định tắt**. Mỗi lần mở app đ
   nhận dạng hay dịch lại.
 - Dòng lệnh cũng vậy: chỉ thuyết minh khi có `--dub` hoặc dùng lệnh `vsub dub`.
 
+**Giọng gốc trong video (clone):** chọn giọng này (đầu danh sách) để VieNeu đọc tiếng Việt bằng giọng của
+người nói trong video. Hợp với video một người nói (vlog, hướng dẫn, review). App lấy khoảng 15 giây nói liền
+mạch nhất (tránh intro/outro) làm giọng mẫu, lưu thành `tên-video.giong-mau.wav` cạnh video. Muốn đổi giọng
+thì thay file đó bằng đoạn ghi âm khác rồi chạy lại (câu cũ được đọc lại theo giọng mới). Giọng clone giữ
+âm sắc nhưng có thể hơi lơ lớ khi người gốc không nói tiếng Việt. Chỉ nên dùng để xem riêng: đăng lại
+video bằng giọng của người khác cần họ đồng ý.
+
 Kết quả là `tên-video.thuyetminh.mp4`: hình chép nguyên (không encode lại), track âm 1 là **thuyết minh**
 (mặc định), track 2 là **âm gốc**.
 
@@ -230,6 +237,8 @@ Một tập 45 phút (~600 câu) mất khoảng 5 phút trên M1 Max (VieNeu ch�
 uv run vsub "phim.mp4" --lang ja --to vi --dub             # nhận dạng + dịch + thuyết minh
 uv run vsub dub "phim.mp4"                                 # thuyết minh từ phim.vi.srt có sẵn
 uv run vsub dub "phim.mp4" --voice "Thiện Minh" --duck-db 15
+uv run vsub dub "phim.mp4" --voice clone                  # giọng người nói trong video
+uv run vsub dub "phim.mp4" --voice-ref "giong-cua-toi.wav" # clone từ file ghi âm của bạn
 ```
 
 ## Hồ sơ phim, phim nhiều tập

@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import os
+import wave
 
 import numpy as np
 import pytest
@@ -153,3 +155,71 @@ def test_synthesize_reports_fatal(tmp_path, monkeypatch):
     monkeypatch.setattr(dub, "WORKER", str(worker))
     with pytest.raises(dub.DubError, match="không có giọng X"):
         dub.synthesize(["chào"], "X", python=sys.executable, root=str(tmp_path / "tts"))
+
+
+# ------------------------------------------------------------------ giọng clone
+
+def test_pick_reference_prefers_dense_speech_away_from_intro_and_outro():
+    # 0–20s: intro thưa; 40–60s: nói liền mạch; 180s cuối là outro nói liền nhưng bị loại
+    cues = [Cue(2, 3, ["a"]), Cue(10, 11, ["b"])]
+    cues += [Cue(40 + 2 * k, 41.9 + 2 * k, ["x"]) for k in range(10)]
+    cues += [Cue(80, 81, ["c"]), Cue(95, 96, ["d"])]
+    cues += [Cue(190 + 2 * k, 191.9 + 2 * k, ["y"]) for k in range(5)]
+    s, e = dub.pick_reference_window(cues, duration=200.0)
+    assert 40 <= s < 45 and 50 <= e <= 60
+    assert e - s <= dub.REF_SECONDS + 0.01
+
+
+def test_pick_reference_falls_back_on_short_or_empty():
+    assert dub.pick_reference_window([], duration=100.0) is None
+    s, e = dub.pick_reference_window([Cue(1.0, 4.0, ["a"]), Cue(4.2, 7.0, ["b"])], duration=8.0)
+    assert (s, e) == (1.0, 7.0)  # video ngắn: vẫn lấy được, kể cả ở đầu
+
+
+def test_cache_key_depends_on_reference_content(tmp_path):
+    ref = tmp_path / "mau.wav"
+    ref.write_bytes(b"giong-1")
+    k1 = dub.voice_key(dub.CLONE, str(ref))
+    assert k1 != dub.voice_key("Trúc Ly", None) and k1.startswith("ref:")
+    assert dub.cache_path(k1, "chào") != dub.cache_path(dub.voice_key("Trúc Ly", None), "chào")
+    ref.write_bytes(b"giong-2")
+    assert dub.voice_key(dub.CLONE, str(ref)) != k1          # thay file mẫu -> đọc lại hết
+    assert dub.voice_key("Trúc Ly", None) == "Trúc Ly"       # giọng có sẵn: cache cũ vẫn dùng được
+
+
+@needs_ffmpeg
+def test_make_reference_cuts_clip_and_reuses_existing(tmp_path):
+    video = tmp_path / "phim.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "sine=frequency=300:duration=30:sample_rate=48000", "-c:a", "aac", str(video)], check=True)
+    cues = [Cue(5 + 2 * k, 6.9 + 2 * k, ["x"]) for k in range(10)]
+    ref = dub.make_reference(str(video), cues)
+    assert ref == str(tmp_path / "phim.giong-mau.wav")
+    with wave.open(ref) as w:
+        assert w.getnchannels() == 1 and 10 <= w.getnframes() / w.getframerate() <= dub.REF_SECONDS + 0.1
+    before = os.path.getmtime(ref)
+    assert dub.make_reference(str(video), cues) == ref and os.path.getmtime(ref) == before
+
+
+def test_synthesize_sends_reference_to_worker(tmp_path, monkeypatch):
+    worker = tmp_path / "w.py"
+    seen = tmp_path / "job.json"
+    worker.write_text(textwrap.dedent(f'''
+        import json, sys, wave
+        job = json.load(sys.stdin)
+        open({str(seen)!r}, "w").write(json.dumps(job))
+        print(json.dumps({{"ready": True}}), flush=True)
+        for i, it in enumerate(job["items"]):
+            with wave.open(it["out"], "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(48000); w.writeframes(b"\\0\\0" * 4800)
+            print(json.dumps({{"i": i, "ok": True}}), flush=True)
+        print(json.dumps({{"done": True}}), flush=True)
+    '''), encoding="utf-8")
+    monkeypatch.setattr(dub, "WORKER", str(worker))
+    ref = tmp_path / "mau.wav"
+    ref.write_bytes(b"giong")
+    paths = dub.synthesize(["chào"], dub.CLONE, python=sys.executable, root=str(tmp_path / "tts"),
+                           ref_audio=str(ref))
+    job = json.loads(seen.read_text())
+    assert job["ref_audio"] == str(ref) and job["voice"] is None
+    assert paths[0] == dub.cache_path(dub.voice_key(dub.CLONE, str(ref)), "chào", str(tmp_path / "tts"))

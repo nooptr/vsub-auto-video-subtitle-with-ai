@@ -1102,10 +1102,10 @@ class App:
     def dub_file(self, path: str, subs: str, voice: str, duck: float | None) -> None:
         """Thuyết minh một video từ file phụ đề tiếng Việt."""
         from .dub import Cancelled as DCancelled
-        from .dub import voiceover
+        from .dub import CLONE, voiceover
         from .formats import parse_srt
 
-        self.emit("dstart", voice)
+        self.emit("dstart", "gốc trong video (clone)" if voice == CLONE else voice)
         started = time.time()
         with open(subs, encoding="utf-8") as f:
             cues = parse_srt(f.read())

@@ -2,7 +2,8 @@
 
 Script đứng riêng, không import vsub (VieNeu thường nằm trong venv khác, Python khác).
 dub.py gọi: <python có vieneu> -I vieneu_worker.py, rồi đưa vào stdin:
-  {"voice": "Trúc Ly", "items": [{"text": "...", "out": "/đường/dẫn.wav"}, ...]}
+  {"voice": "Trúc Ly", "ref_audio": null, "items": [{"text": "...", "out": "/đường/dẫn.wav"}, ...]}
+  (ref_audio = file giọng mẫu để clone; khi có thì bỏ qua voice)
 stdout mỗi dòng một JSON: {"ready": true, "voices": [...]}, {"i": 0, "ok": true, "dur": 1.2},
 {"i": 1, "ok": false, "error": "..."}, cuối cùng {"done": true}. Lỗi nạp model: {"fatal": "..."}.
 """
@@ -78,7 +79,13 @@ def main() -> None:
         tts = Vieneu()
         voices = [v for _, v in tts.list_preset_voices()]
         voice = job.get("voice") or None
-        if voice and tts.resolve_voice_name(voice) is None:
+        ref = job.get("ref_audio") or None
+        if ref:  # clone: học giọng mẫu một lần (lọc nhiễu + cắt lặng), các câu sau dùng lại
+            if not os.path.isfile(ref):
+                send(fatal=f"Không thấy file giọng mẫu: {ref}")
+                sys.exit(1)
+            tts.encode_reference(ref)
+        elif voice and tts.resolve_voice_name(voice) is None:
             send(fatal=f"VieNeu không có giọng “{voice}”. Các giọng có: {', '.join(voices)}")
             sys.exit(1)
     except Exception as e:  # noqa: BLE001
@@ -91,7 +98,9 @@ def main() -> None:
         try:
             wav = None
             for attempt in range(3):
-                w = tts.infer(text, voice=voice, temperature=0.8 if attempt == 0 else 0.6)
+                temp = 0.8 if attempt == 0 else 0.6
+                w = tts.infer(text, ref_audio=ref, temperature=temp) if ref else \
+                    tts.infer(text, voice=voice, temperature=temp)
                 w = np.asarray(w, dtype=np.float32)
                 dur = len(w) / tts.sample_rate
                 wav = w if wav is None or plausible(dur, text) else wav

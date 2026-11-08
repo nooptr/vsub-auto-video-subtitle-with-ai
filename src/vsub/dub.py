@@ -35,8 +35,11 @@ from .models import Cue
 
 SR = 48_000
 DEFAULT_VOICE = "Trúc Ly"
+CLONE = "clone"   # clone giọng người nói trong chính video (đoạn mẫu <tên>.giong-mau.wav)
+REF_SECONDS = 15.0
 # Giọng có sẵn của VieNeu-TTS v3 Turbo (3.8.x); giọng lạ vẫn dùng được nếu VieNeu có.
 VOICES = [
+    ("Giọng gốc trong video (clone)", CLONE),
     ("Trúc Ly — nữ, Bắc, tự nhiên", "Trúc Ly"),
     ("Ngọc Huyền — nữ, Bắc, tự nhiên", "Ngọc Huyền"),
     ("Mai Anh — nữ, Bắc, tin tức", "Mai Anh"),
@@ -146,6 +149,15 @@ def cache_dir() -> str:
     return os.path.join(base(), "tts")
 
 
+def voice_key(voice: str, ref_audio: str | None) -> str:
+    """Khoá cache của giọng: tên giọng có sẵn, hoặc nội dung file mẫu khi clone
+    (thay file mẫu -> đọc lại hết, giữ nguyên -> dùng lại)."""
+    if not ref_audio:
+        return voice
+    with open(ref_audio, "rb") as f:
+        return "ref:" + hashlib.blake2b(f.read(), digest_size=12).hexdigest()
+
+
 def cache_path(voice: str, text: str, root: str | None = None) -> str:
     h = hashlib.sha1(f"{CACHE_VERSION}|{voice}|{text}".encode()).hexdigest()[:20]
     return os.path.join(root or cache_dir(), h[:2], h + ".wav")
@@ -161,10 +173,15 @@ def synthesize(
     progress: Callable[[int, int], None] | None = None,
     status: Callable[[str], None] | None = None,
     cancel: threading.Event | None = None,
+    ref_audio: str | None = None,
 ) -> list[str | None]:
-    """Đọc các câu chưa có trong cache. Trả về đường dẫn WAV cho từng câu (None = câu trống / lỗi)."""
+    """Đọc các câu chưa có trong cache. Trả về đường dẫn WAV cho từng câu (None = câu trống / lỗi).
+    ref_audio: file giọng mẫu để clone (khi đó bỏ qua voice)."""
     say = status or (lambda _m: None)
-    paths = [cache_path(voice, t, root) if t else None for t in texts]
+    if voice == CLONE and not ref_audio:
+        raise DubError("Giọng clone cần file giọng mẫu")
+    key = voice_key(voice, ref_audio)
+    paths = [cache_path(key, t, root) if t else None for t in texts]
     todo: dict[str, str] = {}
     for t, p in zip(texts, paths):
         if p and not os.path.exists(p):
@@ -180,14 +197,16 @@ def synthesize(
     for p in todo:
         os.makedirs(os.path.dirname(p), exist_ok=True)
     items = [{"text": t, "out": p} for p, t in todo.items()]
-    say(f"VieNeu ({voice}) đang đọc {len(items)} câu"
+    label = "giọng clone" if ref_audio else voice
+    say(f"VieNeu ({label}) đang đọc {len(items)} câu"
         + (f", {done_before} câu đã có trong cache" if done_before else "") + "…")
     errors: list[str] = []
     with tempfile.TemporaryFile("w+") as err, tempfile.TemporaryDirectory() as tmp:
         proc = subprocess.Popen([python, "-I", WORKER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=err, text=True, encoding="utf-8", cwd=tmp)
         try:
-            proc.stdin.write(json.dumps({"voice": voice, "items": items}))  # ASCII: không phụ thuộc mã hoá
+            job = {"voice": None if ref_audio else voice, "ref_audio": ref_audio, "items": items}
+            proc.stdin.write(json.dumps(job))  # ASCII: không phụ thuộc mã hoá
             proc.stdin.close()
             n = 0
             for line in proc.stdout:
@@ -217,6 +236,66 @@ def synthesize(
     if errors:
         say(f"! {len(errors)} câu VieNeu không đọc được, bỏ qua: " + "; ".join(errors[:3]))
     return [p if p and os.path.exists(p) else None for p in paths]
+
+
+# ------------------------------------------------------------------ giọng mẫu để clone
+
+def reference_path(video: str) -> str:
+    return os.path.splitext(video)[0] + ".giong-mau.wav"
+
+
+def pick_reference_window(cues: list[Cue], duration: float, target: float = REF_SECONDS,
+                          max_gap: float = 1.0) -> tuple[float, float] | None:
+    """Chọn đoạn ~`target` giây nói liền mạch nhất để làm giọng mẫu. Tránh phần đầu / cuối video
+    (thường là nhạc intro, outro); video ngắn quá thì lấy ở đâu cũng được."""
+    spans = sorted((c.start, c.end) for c in cues if c.end > c.start)
+    if not spans:
+        return None
+    edge = max(15.0, 0.08 * duration)
+    middle = [sp for sp in spans if sp[0] >= edge and sp[1] <= duration - edge]
+    best, best_score = None, -1.0
+    for pool in (middle, spans):
+        for i, (s0, e0) in enumerate(pool):
+            end, speech = min(e0, s0 + target), min(e0, s0 + target) - s0
+            for s1, e1 in pool[i + 1:]:
+                if s1 - end > max_gap or e1 - s0 > target:
+                    break
+                end, speech = e1, speech + (e1 - s1)
+            if speech > best_score + 1e-9:
+                best, best_score = (s0, end), speech
+        if best:
+            return best
+    return best
+
+
+def _duration(video: str) -> float:
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def make_reference(video: str, cues: list[Cue], out: str | None = None, audio_track: int = 0) -> str:
+    """Cắt đoạn giọng mẫu từ âm thanh của video -> <tên>.giong-mau.wav. Đã có file thì dùng luôn
+    (muốn đổi giọng: thay file đó bằng đoạn ghi âm khác)."""
+    out = out or reference_path(video)
+    if os.path.isfile(out) and os.path.getsize(out) > 0:
+        return out
+    win = pick_reference_window(cues, _duration(video))
+    if not win:
+        raise DubError("Phụ đề không có câu nào để lấy giọng mẫu")
+    start, end = win
+    tmp = out + ".part.wav"
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}",
+                        "-i", video, "-map", f"0:a:{audio_track}", "-vn", "-ac", "1", "-ar", str(SR),
+                        "-c:a", "pcm_s16le", tmp], capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
+    if r.returncode or not os.path.isfile(tmp):
+        raise DubError("Không cắt được giọng mẫu: " + (r.stderr or "").strip()[-300:])
+    os.replace(tmp, out)
+    return out
 
 
 # ------------------------------------------------------------------ xử lý âm thanh
@@ -598,8 +677,10 @@ def voiceover(
     progress: Callable[[str, int, int], None] | None = None,
     cancel: threading.Event | None = None,
     tts_root: str | None = None,
+    ref_audio: str | None = None,
 ) -> DubResult:
-    """Làm bản thuyết minh cho `video` từ phụ đề tiếng Việt `cues`."""
+    """Làm bản thuyết minh cho `video` từ phụ đề tiếng Việt `cues`.
+    voice=CLONE: đọc bằng giọng người nói trong video (ref_audio, hoặc tự cắt <tên>.giong-mau.wav)."""
     from .audio import load_audio
 
     say = status or (lambda _m: None)
@@ -611,8 +692,13 @@ def voiceover(
     if not any(texts):
         raise DubError("Phụ đề không có câu nào để đọc")
 
+    if ref_audio:
+        voice = CLONE
+    elif voice == CLONE:
+        ref_audio = make_reference(video, cues, audio_track=audio_track)
+        say(f"Giọng mẫu: {os.path.basename(ref_audio)} — muốn đổi giọng thì thay file này bằng đoạn ghi âm khác")
     wavs = synthesize(texts, voice, python, tts_root, progress=lambda i, n: prog("tts", i, n),
-                      status=say, cancel=cancel)
+                      status=say, cancel=cancel, ref_audio=ref_audio)
 
     say("Kiểm tra âm gốc và giọng đọc…")
 

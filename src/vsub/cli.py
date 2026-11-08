@@ -10,6 +10,7 @@
   vsub translate phim.srt --to vi       # dịch file .srt có sẵn
   vsub phim.mp4 --to vi --dub           # + thuyết minh bằng VieNeu -> phim.thuyetminh.mp4
   vsub dub phim.mp4                     # thuyết minh từ phim.vi.srt có sẵn
+  vsub dub phim.mp4 --voice clone       # ... bằng giọng người nói trong video
   vsub doctor                           # kiểm tra FFmpeg, Whisper, Claude, VieNeu; --install để cài
 """
 
@@ -141,7 +142,10 @@ def _add_dub_args(p: argparse.ArgumentParser, flag: bool = True) -> None:
     if flag:
         g.add_argument("--dub", action="store_true",
                        help="thuyết minh bản dịch tiếng Việt bằng VieNeu -> phim.thuyetminh.mp4")
-    g.add_argument("--voice", default=DEFAULT_VOICE, help=f"giọng VieNeu (mặc định {DEFAULT_VOICE})")
+    g.add_argument("--voice", default=DEFAULT_VOICE,
+                   help=f"giọng VieNeu (mặc định {DEFAULT_VOICE}); clone = giọng người nói trong video, "
+                        "tự cắt đoạn mẫu <tên video>.giong-mau.wav")
+    g.add_argument("--voice-ref", help="file ghi âm giọng mẫu để clone (thay cho đoạn app tự cắt)")
     g.add_argument("--duck-db", type=float,
                    help="giảm âm gốc cố định N dB khi có lời đọc (mặc định: tự đo theo từng câu)")
     g.add_argument("--audio-track", type=int, default=0, help="track âm thanh gốc (mặc định 0)")
@@ -165,7 +169,7 @@ def _do_dub(video: str, subs: str, a, out: str | None = None) -> str:
 
     try:
         r = voiceover(video, cues, out=out, voice=a.voice, duck_db=a.duck_db, audio_track=a.audio_track,
-                      status=say, progress=progress)
+                      status=say, progress=progress, ref_audio=a.voice_ref)
     except Cancelled:
         raise KeyboardInterrupt from None
     except DubError as e:
