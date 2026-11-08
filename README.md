@@ -6,6 +6,11 @@ Nhận dạng thoại bằng Whisper, cắt câu theo chuẩn phụ đề phim, 
 (giữ tên riêng và xưng hô), thuyết minh tiếng Việt bằng VieNeu-TTS. Trên Mac chip M, app chạy bằng
 **mlx-whisper** (dùng GPU). Trên máy khác thì tự chuyển sang **faster-whisper**.
 
+- **Video từ máy hoặc từ YouTube**: kéo thả file, hoặc dán link YouTube để app tự tải bản `.mp4` 1080p.
+- **Phụ đề gốc + bản dịch**: `tên-video.srt` và `tên-video.vi.srt`, IINA, VLC, Infuse tự nhận khi mở video.
+- **Thuyết minh tiếng Việt**: chọn một trong 15 giọng có sẵn, hoặc **clone giọng của chính người nói
+  trong video** (hợp với vlog, hướng dẫn, review một người nói).
+
 **Trang giới thiệu:** https://viennv96.github.io/vsub-auto-video-subtitle-with-ai/
 
 ## Tải bản cài sẵn
@@ -56,6 +61,7 @@ Script tự cài ffmpeg, uv và thư viện Python, rồi build **`Vsub.app`** n
 | Model Whisper | bắt buộc | tự tải lần chạy đầu (large-v3-turbo 1,6 GB, large-v3 3,1 GB) |
 | Claude CLI (đã đăng nhập) | dịch | cài bằng `curl -fsSL https://claude.ai/install.sh \| bash`, rồi `claude auth login` |
 | VieNeu-TTS | thuyết minh | venv riêng, xem mục [Thuyết minh](#thuyết-minh-bằng-vieneu-tts) |
+| yt-dlp (+ deno) | tải YouTube | cài sẵn cùng thư viện Python, không cần làm gì thêm |
 
 Tab **Thư viện** trong app cho biết đang có gì, thiếu gì: ✅ đủ, ❌ thiếu thứ bắt buộc, ⚠️ thiếu thứ tuỳ chọn.
 Dòng nào thiếu thì có nút **Cài đặt** / **Đăng nhập** / **Tải trước**. App hỏi xác nhận, ghi rõ các lệnh sẽ chạy,
@@ -78,18 +84,23 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
 
 1. **Kéo thả video hoặc cả thư mục** vào cửa sổ app, hoặc thả lên icon `Vsub.app` trong Finder/Dock. Cũng có thể bấm **Chọn video…**. Danh sách tự sắp theo tên: các tập
    cùng phim đứng liền nhau, đúng thứ tự tập (`ep.2` đứng trước `ep.10`)
+
+   **Video trên YouTube:** dán link vào ô **Link YouTube** rồi bấm **Tải video** (hoặc Enter). App tải bản
+   `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào thư mục **Downloads**,
+   rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
+   trình duyệt thì cập nhật yt-dlp theo lệnh app ghi trong log.
 2. Chọn ngôn ngữ trong phim (để "Tự nhận diện" cũng được)
 3. Chọn **Dịch bằng Claude sang** (mặc định Tiếng Việt) hoặc "Không dịch"
 4. Nếu muốn, mở tab **Thông tin phim** và điền cho từng phim (xem mục
    [Hồ sơ phim](#hồ-sơ-phim-phim-nhiều-tập)): nội dung phim, link liên quan, tệp đã dịch,
    xưng hô, tên riêng
-   Video trên YouTube: dán link vào ô **Link YouTube** rồi bấm **Tải video** (hoặc Enter). App tải bản
-   `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào thư mục **Downloads**,
-   rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
-   trình duyệt thì cập nhật yt-dlp theo lệnh app ghi trong log.
-5. Bấm **▶ Tạo phụ đề**. Kết quả nằm cùng thư mục với video:
+5. Muốn thuyết minh: tab **Cài đặt → Thuyết minh**, tích "Bật thuyết minh bằng VieNeu" và chọn giọng
+   (giọng có sẵn, hoặc **Giọng gốc trong video (clone)**). Xem mục
+   [Thuyết minh](#thuyết-minh-bằng-vieneu-tts).
+6. Bấm **▶ Tạo phụ đề**. Kết quả nằm cùng thư mục với video:
    - `tên-video.srt`: phụ đề theo ngôn ngữ gốc
    - `tên-video.vi.srt`: bản dịch (IINA, VLC, Infuse tự nhận cả hai file)
+   - `tên-video.thuyetminh.mp4`: video thuyết minh (nếu bật)
 
 Log ghi ở `~/Library/Logs/vsub.log`. Có thể kéo `Vsub.app` vào Dock hoặc Applications;
 nhưng đừng di chuyển hay đổi tên thư mục project (app gọi vào đó).
@@ -125,6 +136,36 @@ uv run vsub embed "phim.mp4" "phim.srt" --lang vi --burn
 ```
 
 Gợi ý tên nhân vật hoặc thuật ngữ cho model: `--prompt "Tanaka, Sato, công ty Nexus"`.
+
+## Lệnh tắt bằng `make`
+
+Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `make` để xem danh sách.
+
+| Lệnh | Làm gì |
+|---|---|
+| `make setup` | Cài lần đầu trên Mac (giống `bash setup.command`) |
+| `make sync` / `make dev` | Cài / cập nhật thư viện Python; `dev` thêm pytest |
+| `make doctor` / `make install-vieneu` | Kiểm tra thành phần / cài VieNeu-TTS |
+| `make update-ytdlp` | Cập nhật yt-dlp khi YouTube đổi cách chặn |
+| `make gui` | Mở giao diện |
+| `make sub IN=…` | Tạo phụ đề gốc (`.srt`) |
+| `make vi IN=…` | Tạo phụ đề và dịch sang tiếng Việt |
+| `make dub-new IN=… VOICE=…` | Phụ đề, dịch và thuyết minh bằng giọng có sẵn |
+| `make clone IN=…` | Phụ đề, dịch và thuyết minh bằng giọng clone |
+| `make dub IN=…` / `make dub-clone IN=…` | Chỉ thuyết minh từ `tên-video.vi.srt` có sẵn |
+| `make test` | Chạy test |
+| `make build-mac` / `make build-win` | Đóng gói bản phát hành |
+| `make clean` | Xoá `dist/`, `__pycache__`, `*.egg-info` |
+
+Biến: `IN` là file video hoặc link YouTube (đường dẫn có khoảng trắng hay `~/…` đều được),
+`LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
+`ARGS` là tuỳ chọn thêm cho `vsub`.
+
+```bash
+make clone IN="https://youtu.be/VIDEO_ID"
+make vi IN="~/Downloads/phim.mp4" LANG_SRC=ja
+make dub IN="phim.mp4" VOICE="Thiện Minh" ARGS="--duck-db 15"
+```
 
 ## Claude đọc thêm (mặc định tắt)
 
@@ -274,6 +315,7 @@ Dòng lệnh cũng dùng hồ sơ: `--link` và `--ref` (lặp được) thêm l
 
 ## Cách hoạt động
 
+0. **Link YouTube** (nếu có): yt-dlp tải hình H.264 + tiếng AAC tốt nhất ≤ 1080p, ffmpeg ghép thành `.mp4`.
 1. **Tách audio** bằng ffmpeg: mono 16 kHz, có lọc nhẹ highpass/lowpass. File bị mất gói audio giữa phim
    (có tập hụt 6 khúc, mỗi khúc 8 giây) được lấp bằng khoảng lặng để phụ đề sau chỗ hụt không bị sớm dần.
 2. **VAD** (Silero): tìm các đoạn có thoại. Silero hay bỏ sót lời nói lẫn nhạc nền hoặc giọng
@@ -315,7 +357,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ```bash
 uv sync --extra dev
-uv run pytest
+uv run pytest        # hoặc: make dev && make test
 ```
 
 ---
