@@ -105,3 +105,13 @@ def reveal(path: str) -> None:
         subprocess.run(["explorer", "/select,", os.path.normpath(path)])
     else:
         subprocess.run(["xdg-open", os.path.dirname(path)])
+
+
+def output_stem(path: str, out_dir: str | None = None) -> str:
+    """Tên file xuất ra (chưa có đuôi) cho `path`: cạnh file gốc, hoặc trong out_dir nếu có (tự tạo thư mục)."""
+    stem = os.path.splitext(path)[0]
+    if not out_dir:
+        return stem
+    out_dir = os.path.abspath(os.path.expanduser(out_dir))
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, os.path.basename(stem))

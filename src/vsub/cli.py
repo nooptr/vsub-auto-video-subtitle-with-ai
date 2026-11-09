@@ -10,6 +10,7 @@
   vsub translate phim.srt --to vi       # dịch file .srt có sẵn
   vsub phim.mp4 --to vi --dub           # + thuyết minh bằng VieNeu -> phim.thuyetminh.mp4
   vsub dub phim.mp4                     # thuyết minh từ phim.vi.srt có sẵn
+  vsub phim.mp4 --to vi -O ~/PhuDe      # lưu mọi file xuất ra vào ~/PhuDe thay vì cạnh video
   vsub dub phim.mp4 --voice clone       # ... bằng giọng người nói trong video
   vsub doctor                           # kiểm tra FFmpeg, Whisper, Claude, VieNeu; --install để cài
 """
@@ -23,6 +24,19 @@ import sys
 from . import __version__
 
 COMMANDS = {"run", "reflow", "embed", "translate", "dub", "doctor"}
+
+
+def _add_out_dir_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument("-O", "--out-dir", metavar="DIR",
+                   help="thư mục lưu các file xuất ra (phụ đề, bản dịch, thuyết minh…); mặc định: cạnh video")
+
+
+def _vi_subs(video: str, out_dir: str | None) -> str:
+    """<tên>.vi.srt: trong out_dir nếu có ở đó, không thì cạnh video."""
+    from .paths import output_stem
+
+    cands = [output_stem(video, out_dir) + ".vi.srt", os.path.splitext(video)[0] + ".vi.srt"]
+    return next((c for c in cands if os.path.exists(c)), cands[0])
 
 
 def _add_reflow_args(p: argparse.ArgumentParser) -> None:
@@ -69,6 +83,7 @@ def _add_translate_args(p: argparse.ArgumentParser, flag: str = "--to") -> None:
 
 def _do_translate(srt: str, source: str | None, a, cues=None, position: str | None = None) -> str:
     from .formats import parse_srt, srt_position, write_subs
+    from .paths import output_stem
     from .translate import ClaudeRunner, parse_glossary_text, translate_cues, translated_path
 
     with open(srt, encoding="utf-8") as f:
@@ -79,7 +94,7 @@ def _do_translate(srt: str, source: str | None, a, cues=None, position: str | No
     if a.glossary:
         with open(a.glossary, encoding="utf-8") as f:
             glossary = parse_glossary_text(f.read())
-    out = translated_path(srt, a.to)
+    out = translated_path(output_stem(srt, getattr(a, "out_dir", None)) + os.path.splitext(srt)[1], a.to)
     runner = ClaudeRunner(model=a.claude_model)
     say = lambda m: print("• " + m, file=sys.stderr, flush=True)  # noqa: E731
     profile = story = episode = None
@@ -123,8 +138,9 @@ def _add_embed_args(p: argparse.ArgumentParser) -> None:
 
 def _do_embed(video, subs, lang, a, position: str = "bottom") -> None:
     from .mux import burn_in, embed_soft, make_style
+    from .paths import output_stem
 
-    stem, ext = os.path.splitext(video)
+    stem, ext = output_stem(video, getattr(a, "out_dir", None)), os.path.splitext(video)[1]
     if a.embed:
         out = a.video_out or f"{stem}.sub{ext if ext.lower() in ('.mp4', '.mkv', '.mov', '.m4v') else '.mkv'}"
         embed_soft(video, subs, out, language=lang)
@@ -169,7 +185,8 @@ def _do_dub(video: str, subs: str, a, out: str | None = None) -> str:
 
     try:
         r = voiceover(video, cues, out=out, voice=a.voice, duck_db=a.duck_db, audio_track=a.audio_track,
-                      status=say, progress=progress, ref_audio=a.voice_ref)
+                      status=say, progress=progress, ref_audio=a.voice_ref,
+                      out_dir=getattr(a, "out_dir", None))
     except Cancelled:
         raise KeyboardInterrupt from None
     except DubError as e:
@@ -226,11 +243,13 @@ def cmd_run(a) -> None:
     from .youtube import is_youtube_url
 
     if is_youtube_url(a.video):
-        a.video = _download(a.video, a.download_dir, _cookies_browser(a.cookies_from_browser))
+        a.video = _download(a.video, a.download_dir or a.out_dir, _cookies_browser(a.cookies_from_browser))
     video = os.path.abspath(a.video)
     if not os.path.exists(video):
         sys.exit(f"Không thấy file: {video}")
-    stem = os.path.splitext(video)[0]
+    from .paths import output_stem
+
+    stem = output_stem(video, a.out_dir)
     cache = a.transcript or f"{stem}.transcript.json"
     task = "translate" if a.translate else "transcribe"
 
@@ -316,7 +335,7 @@ def cmd_dub(a) -> None:
     video = os.path.abspath(a.video)
     if not os.path.exists(video):
         sys.exit(f"Không thấy file: {video}")
-    subs = a.subs or os.path.splitext(video)[0] + ".vi.srt"
+    subs = a.subs or _vi_subs(video, a.out_dir)
     if not os.path.exists(subs):
         sys.exit(f"Không thấy phụ đề tiếng Việt: {subs} (tạo bằng: vsub \"{a.video}\" --to vi)")
     _do_dub(video, subs, a, out=a.output)
@@ -353,7 +372,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("run", help="nhận dạng giọng nói và tạo phụ đề (mặc định)")
     r.add_argument("video", help="file video, hoặc link video YouTube (tải về .mp4 H.264, tối đa 1080p)")
-    r.add_argument("--download-dir", help="thư mục lưu video tải từ YouTube (mặc định ~/Downloads)")
+    _add_out_dir_arg(r)
+    r.add_argument("--download-dir",
+                   help="thư mục lưu video tải từ YouTube (mặc định: --out-dir nếu có, không thì ~/Downloads)")
     r.add_argument("--cookies-from-browser", metavar="BROWSER",
                    help="khi YouTube đòi xác minh, lấy cookie YouTube từ trình duyệt này: chrome, firefox, brave, "
                         "safari, edge (mặc định: biến VSUB_YT_COOKIES hoặc lựa chọn trong giao diện; none = tắt)")
@@ -376,6 +397,7 @@ def build_parser() -> argparse.ArgumentParser:
     t = sub.add_parser("translate", help="dịch file .srt có sẵn bằng Claude CLI")
     t.add_argument("srt")
     t.add_argument("--from", dest="source", help="ngôn ngữ gốc (không bắt buộc)")
+    _add_out_dir_arg(t)
     _add_translate_args(t)
     t.set_defaults(func=cmd_translate)
 
@@ -391,14 +413,17 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("video")
     e.add_argument("subs")
     e.add_argument("-l", "--lang")
+    _add_out_dir_arg(e)
     _add_position_arg(e)
     _add_embed_args(e)
     e.set_defaults(func=cmd_embed)
 
     d = sub.add_parser("dub", help="thuyết minh bằng VieNeu-TTS từ phụ đề tiếng Việt có sẵn")
     d.add_argument("video")
-    d.add_argument("subs", nargs="?", help="phụ đề tiếng Việt (mặc định: <tên video>.vi.srt)")
+    d.add_argument("subs", nargs="?",
+                   help="phụ đề tiếng Việt (mặc định: <tên video>.vi.srt trong --out-dir hoặc cạnh video)")
     d.add_argument("-o", "--output", help="video xuất ra (mặc định: <tên video>.thuyetminh.mp4)")
+    _add_out_dir_arg(d)
     _add_dub_args(d, flag=False)
     d.set_defaults(func=cmd_dub)
 

@@ -240,8 +240,10 @@ def synthesize(
 
 # ------------------------------------------------------------------ giọng mẫu để clone
 
-def reference_path(video: str) -> str:
-    return os.path.splitext(video)[0] + ".giong-mau.wav"
+def reference_path(video: str, out_dir: str | None = None) -> str:
+    from .paths import output_stem
+
+    return output_stem(video, out_dir) + ".giong-mau.wav"
 
 
 def pick_reference_window(cues: list[Cue], duration: float, target: float = REF_SECONDS,
@@ -521,8 +523,10 @@ class DubResult:
                 + (f", câu trễ nhất {self.late:.1f}s" if self.late > 0.3 else ""))
 
 
-def output_path(video: str) -> str:
-    stem, ext = os.path.splitext(video)
+def output_path(video: str, out_dir: str | None = None) -> str:
+    from .paths import output_stem
+
+    stem, ext = output_stem(video, out_dir), os.path.splitext(video)[1]
     ext = ext.lower()
     if _probe_has_video(video):
         ext = ext if ext in (".mp4", ".m4v", ".mov", ".mkv") else ".mkv"
@@ -678,15 +682,17 @@ def voiceover(
     cancel: threading.Event | None = None,
     tts_root: str | None = None,
     ref_audio: str | None = None,
+    out_dir: str | None = None,
 ) -> DubResult:
     """Làm bản thuyết minh cho `video` từ phụ đề tiếng Việt `cues`.
-    voice=CLONE: đọc bằng giọng người nói trong video (ref_audio, hoặc tự cắt <tên>.giong-mau.wav)."""
+    voice=CLONE: đọc bằng giọng người nói trong video (ref_audio, hoặc tự cắt <tên>.giong-mau.wav).
+    out_dir: thư mục lưu file thuyết minh + giọng mẫu (mặc định cạnh video)."""
     from .audio import load_audio
 
     say = status or (lambda _m: None)
     prog = progress or (lambda *_a: None)
     t0 = time.time()
-    out = out or output_path(video)
+    out = out or output_path(video, out_dir)
     cues = sorted(cues, key=lambda c: c.start)
     texts = [tts_text(c) for c in cues]
     if not any(texts):
@@ -695,7 +701,7 @@ def voiceover(
     if ref_audio:
         voice = CLONE
     elif voice == CLONE:
-        ref_audio = make_reference(video, cues, audio_track=audio_track)
+        ref_audio = make_reference(video, cues, out=reference_path(video, out_dir), audio_track=audio_track)
         say(f"Giọng mẫu: {os.path.basename(ref_audio)} — muốn đổi giọng thì thay file này bằng đoạn ghi âm khác")
     wavs = synthesize(texts, voice, python, tts_root, progress=lambda i, n: prog("tts", i, n),
                       status=say, cancel=cancel, ref_audio=ref_audio)

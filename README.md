@@ -86,7 +86,8 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
    cùng phim đứng liền nhau, đúng thứ tự tập (`ep.2` đứng trước `ep.10`)
 
    **Video trên YouTube:** dán link vào ô **Link YouTube** rồi bấm **Tải video** (hoặc Enter). App tải bản
-   `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào thư mục **Downloads**,
+   `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào **Thư mục lưu** (chưa chọn
+   thì vào **Downloads**),
    rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
    trình duyệt thì cập nhật yt-dlp theo lệnh app ghi trong log.
 
@@ -95,6 +96,9 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
    không cookie trước, chỉ khi YouTube chặn mới thử lại bằng cookie YouTube của trình duyệt đó. Lần đầu với
    Chrome / Brave / Edge, macOS hỏi quyền Keychain ("Chrome Safe Storage"): chọn **Cho phép**. Safari cần cấp
    quyền Full Disk Access.
+
+   **Thư mục lưu:** mặc định mọi file kết quả nằm cạnh video. Muốn gom vào một chỗ khác thì bấm **Chọn…** ở
+   dòng **Thư mục lưu**; bấm **Cạnh video** để quay về như cũ. App nhớ lựa chọn này cho lần sau.
 2. Chọn ngôn ngữ trong phim (để "Tự nhận diện" cũng được)
 3. Chọn **Dịch bằng Claude sang** (mặc định Tiếng Việt) hoặc "Không dịch"
 4. Nếu muốn, mở tab **Thông tin phim** và điền cho từng phim (xem mục
@@ -103,7 +107,7 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
 5. Muốn thuyết minh: tab **Cài đặt → Thuyết minh**, tích "Bật thuyết minh bằng VieNeu" và chọn giọng
    (giọng có sẵn, hoặc **Giọng gốc trong video (clone)**). Xem mục
    [Thuyết minh](#thuyết-minh-bằng-vieneu-tts).
-6. Bấm **▶ Tạo phụ đề**. Kết quả nằm cùng thư mục với video:
+6. Bấm **▶ Tạo phụ đề**. Kết quả nằm cùng thư mục với video (hoặc trong **Thư mục lưu** nếu đã chọn):
    - `tên-video.srt`: phụ đề theo ngôn ngữ gốc
    - `tên-video.vi.srt`: bản dịch (IINA, VLC, Infuse tự nhận cả hai file)
    - `tên-video.thuyetminh.mp4`: video thuyết minh (nếu bật)
@@ -122,6 +126,11 @@ uv run vsub "https://youtu.be/VIDEO_ID" --to vi --dub
 uv run vsub "https://www.youtube.com/watch?v=VIDEO_ID" --download-dir ~/Movies
 uv run vsub "https://youtu.be/VIDEO_ID" --cookies-from-browser chrome   # khi YouTube đòi xác minh bot
 # đặt một lần trong ~/.zshrc thay cho gõ mỗi lần:  export VSUB_YT_COOKIES=chrome
+
+# Lưu kết quả (.srt, .vi.srt, .thuyetminh.mp4, .transcript.json…) vào thư mục khác thay vì cạnh video.
+# Có ở run / translate / embed / dub. Với link YouTube, video cũng tải vào đây (trừ khi có --download-dir).
+uv run vsub "phim.mp4" --to vi --out-dir ~/PhuDe      # viết tắt: -O ~/PhuDe
+uv run vsub dub "phim.mp4" -O ~/PhuDe                 # tìm phim.vi.srt trong ~/PhuDe trước, rồi cạnh video
 
 # Chỉ định ngôn ngữ (chính xác hơn, khỏi bước đoán)
 uv run vsub "phim.mp4" --lang ja
@@ -168,12 +177,13 @@ Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `ma
 `<video>` là file video hoặc link YouTube, ghi ngay sau tên lệnh (đường dẫn có khoảng trắng thì để trong
 dấu nháy). Biến thêm: `LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
 `COOKIES` là trình duyệt lấy cookie khi YouTube chặn (hoặc `export VSUB_YT_COOKIES=chrome` một lần),
-`ARGS` là tuỳ chọn thêm cho `vsub`. Cách cũ `IN="…"` vẫn dùng được.
+`OUT` là thư mục lưu kết quả (bỏ trống = cạnh video), `ARGS` là tuỳ chọn thêm cho `vsub`. Cách cũ `IN="…"` vẫn dùng được.
 
 ```bash
 make clone "https://www.youtube.com/watch?v=VIDEO_ID"
 make clone https://youtu.be/VIDEO_ID
 make vi ~/Downloads/phim.mp4 LANG_SRC=ja
+make clone https://youtu.be/VIDEO_ID OUT=~/PhuDe
 make dub "phim tập 1.mp4" VOICE="Thiện Minh" ARGS="--duck-db 15"
 ```
 
@@ -264,7 +274,7 @@ Thuyết minh là **tuỳ chọn, mặc định tắt**. Mỗi lần mở app đ
 
 **Giọng gốc trong video (clone):** chọn giọng này (đầu danh sách) để VieNeu đọc tiếng Việt bằng giọng của
 người nói trong video. Hợp với video một người nói (vlog, hướng dẫn, review). App lấy khoảng 15 giây nói liền
-mạch nhất (tránh intro/outro) làm giọng mẫu, lưu thành `tên-video.giong-mau.wav` cạnh video. Muốn đổi giọng
+mạch nhất (tránh intro/outro) làm giọng mẫu, lưu thành `tên-video.giong-mau.wav` cạnh video (hoặc trong thư mục lưu). Muốn đổi giọng
 thì thay file đó bằng đoạn ghi âm khác rồi chạy lại (câu cũ được đọc lại theo giọng mới). Giọng clone giữ
 âm sắc nhưng có thể hơi lơ lớ khi người gốc không nói tiếng Việt. Chỉ nên dùng để xem riêng: đăng lại
 video bằng giọng của người khác cần họ đồng ý.

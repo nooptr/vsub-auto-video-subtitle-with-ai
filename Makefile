@@ -6,6 +6,7 @@
 #   make vi "https://www.youtube.com/watch?v=VIDEO_ID"
 #   make clone ~/Downloads/phim.mp4
 #   make dub phim.mp4 VOICE="Thiện Minh"
+#   make vi phim.mp4 OUT=~/PhuDe   # lưu kết quả vào ~/PhuDe thay vì cạnh video
 #   make vi IN="phim.mp4"          # cách cũ vẫn dùng được
 
 SHELL := /bin/bash
@@ -18,9 +19,13 @@ ARGS  ?=
 VOICE ?= Trúc Ly
 LANG_SRC ?=
 COOKIES ?=
+OUT ?=
 
 # --cookies-from-browser chỉ thêm khi có COOKIES (trình duyệt lấy cookie YouTube khi bị chặn)
 cookie_flag = $(if $(COOKIES),--cookies-from-browser $(COOKIES))
+
+# --out-dir chỉ thêm khi có OUT (thư mục lưu kết quả; bỏ trống = cạnh video)
+out_flag = $(if $(OUT),--out-dir "$(OUT)")
 
 # --lang chỉ thêm khi có LANG_SRC (bỏ trống = tự nhận ngôn ngữ)
 lang_flag = $(if $(LANG_SRC),--lang $(LANG_SRC))
@@ -49,11 +54,11 @@ endef
         test build-mac build-win update-ytdlp clean
 
 help: ## Hiện danh sách lệnh
-	@echo "Dùng: make <lệnh> [video | link YouTube] [VOICE=...] [LANG_SRC=...] [ARGS=...]"
+	@echo "Dùng: make <lệnh> [video | link YouTube] [OUT=...] [VOICE=...] [LANG_SRC=...] [ARGS=...]"
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo
-	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), COOKIES (chrome, firefox… khi YouTube chặn), ARGS (tuỳ chọn thêm)"
+	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), COOKIES (chrome, firefox… khi YouTube chặn), OUT (thư mục lưu kết quả), ARGS (tuỳ chọn thêm)"
 
 # ---------------------------------------------------------------- cài đặt
 
@@ -83,27 +88,27 @@ gui: ## Mở giao diện
 
 sub: ## Tạo phụ đề gốc (.srt)  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) $(cookie_flag) $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) $(out_flag) $(ARGS)
 
 vi: ## Tạo phụ đề + dịch sang tiếng Việt  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi $(out_flag) $(ARGS)
 
 dub-new: ## Phụ đề + dịch + thuyết minh giọng có sẵn  <video|link> [VOICE=...]
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice "$(VOICE)" $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice "$(VOICE)" $(out_flag) $(ARGS)
 
 clone: ## Phụ đề + dịch + thuyết minh giọng clone  <video|link>
 	$(need_in)
-	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice clone $(ARGS)
+	$(VSUB) $(in) $(lang_flag) $(cookie_flag) --to vi --dub --voice clone $(out_flag) $(ARGS)
 
 dub: ## Chỉ thuyết minh từ <tên>.vi.srt có sẵn  <video> [VOICE=...]
 	$(need_in)
-	$(VSUB) dub $(in) --voice "$(VOICE)" $(ARGS)
+	$(VSUB) dub $(in) --voice "$(VOICE)" $(out_flag) $(ARGS)
 
 dub-clone: ## Chỉ thuyết minh từ .vi.srt bằng giọng clone  <video>
 	$(need_in)
-	$(VSUB) dub $(in) --voice clone $(ARGS)
+	$(VSUB) dub $(in) --voice clone $(out_flag) $(ARGS)
 
 # ---------------------------------------------------------------- phát triển
 

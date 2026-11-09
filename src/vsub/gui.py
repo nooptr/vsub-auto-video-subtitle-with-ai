@@ -1,4 +1,4 @@
-"""Giao diện: chọn video -> bấm "Tạo phụ đề" -> ra <tên video>.srt cùng thư mục.
+"""Giao diện: chọn video -> bấm "Tạo phụ đề" -> ra <tên video>.srt cùng thư mục (hoặc ở "Thư mục lưu").
 
 Tab "Thông tin phim" sửa hồ sơ của từng phim (series.py): danh sách video được gom theo
 chuỗi phim, mỗi chuỗi / phim lẻ một hồ sơ riêng, Claude đọc trước khi dịch."""
@@ -211,8 +211,18 @@ def open_new_window(files: list[str] | None = None):
                                 stdin=subprocess.DEVNULL, **kw)
 
 
-def srt_path(video: str) -> str:
-    return os.path.splitext(video)[0] + ".srt"
+def srt_path(video: str, out_dir: str | None = None) -> str:
+    from .paths import output_stem
+
+    return output_stem(video, out_dir) + ".srt"
+
+
+def vi_srt_path(video: str, out_dir: str | None = None) -> str:
+    """<tên>.vi.srt có sẵn: trong thư mục lưu nếu có ở đó, không thì cạnh video."""
+    from .translate import translated_path
+
+    cands = [translated_path(srt_path(video, out_dir), "vi"), translated_path(srt_path(video), "vi")]
+    return next((c for c in cands if os.path.exists(c)), cands[0])
 
 
 def _text_get(w: tk.Text) -> str:
@@ -276,7 +286,7 @@ class App:
         self.count_lbl = ttk.Label(row, text="Chưa chọn file nào")
         self.count_lbl.pack(side="left", padx=12)
 
-        # --- tải từ YouTube (.mp4 H.264, tối đa 1080p) vào ~/Downloads rồi thêm vào danh sách
+        # --- tải từ YouTube (.mp4 H.264, tối đa 1080p) vào thư mục lưu / ~/Downloads rồi thêm vào danh sách
         urow = ttk.Frame(frm)
         urow.pack(fill="x", pady=(8, 0))
         ttk.Label(urow, text="Link YouTube:").pack(side="left")
@@ -296,6 +306,21 @@ class App:
         self.cookies.pack(side="left")
         self.cookies.bind("<<ComboboxSelected>>", lambda _e: save_settings(
             {**load_settings(), "yt_cookies": BROWSERS[self.cookies.current()][1]}))
+
+        # --- thư mục lưu file xuất ra (phụ đề, bản dịch, thuyết minh, video tải về); trống = cạnh video
+        orow = ttk.Frame(frm)
+        orow.pack(fill="x", pady=(8, 0))
+        ttk.Label(orow, text="Thư mục lưu:").pack(side="left")
+        saved = load_settings().get("out_dir") or ""
+        self.out_dir: str | None = saved if saved and os.path.isdir(saved) else None
+        self.out_var = tk.StringVar()
+        self.out_entry = ttk.Entry(orow, textvariable=self.out_var, state="readonly")
+        self.out_entry.pack(side="left", fill="x", expand=True, padx=8)
+        self.out_btn = ttk.Button(orow, text="Chọn…", command=self.pick_out_dir)
+        self.out_btn.pack(side="left")
+        self.out_reset = ttk.Button(orow, text="Cạnh video", command=lambda: self.set_out_dir(None))
+        self.out_reset.pack(side="left", padx=(6, 0))
+        self.set_out_dir(self.out_dir)
 
         self.listbox = tk.Listbox(frm, height=5, activestyle="none")
         self.listbox.pack(fill="x", pady=(10, 12))
@@ -558,6 +583,18 @@ class App:
             self.add(p, refresh=False)
         self.refresh_files()
 
+    def pick_out_dir(self) -> None:
+        start = self.out_dir or (os.path.dirname(self.files[-1]) if self.files else os.path.expanduser("~"))
+        d = filedialog.askdirectory(title="Chọn thư mục lưu phụ đề / thuyết minh", initialdir=start, mustexist=False)
+        if d:
+            self.set_out_dir(d)
+
+    def set_out_dir(self, d: str | None) -> None:
+        self.out_dir = d or None
+        self.out_var.set(self.out_dir or "(cùng thư mục với video; video YouTube tải vào ~/Downloads)")
+        self.out_reset.config(state="normal" if self.out_dir and not self.running else "disabled")
+        save_settings({**load_settings(), "out_dir": self.out_dir or ""})
+
     def download_url(self) -> None:
         """Tải video YouTube trong luồng nền; xong thì thêm vào danh sách như file chọn tay."""
         from .youtube import is_youtube_url
@@ -583,7 +620,7 @@ class App:
         from .youtube import BROWSERS
 
         cookies = BROWSERS[self.cookies.current()][1]
-        self.worker = threading.Thread(target=self.work_download, args=(url, cookies), daemon=True)
+        self.worker = threading.Thread(target=self.work_download, args=(url, cookies, self.out_dir), daemon=True)
         self.worker.start()
 
     def clear(self) -> None:
@@ -740,7 +777,8 @@ class App:
             self.write("⚠ Lần này không thuyết minh (chưa có VieNeu-TTS).")
         if not self.confirm_model(MODELS[self.model.current()][1]):
             return
-        exist = [f for f in self.files if os.path.exists(srt_path(f))]
+        out_dir = self.out_dir
+        exist = [f for f in self.files if os.path.exists(srt_path(f, out_dir))]
         if exist and not messagebox.askyesno(
             "Ghi đè?", f"Đã có sẵn {len(exist)} file .srt cùng tên. Ghi đè lên?"
         ):
@@ -761,7 +799,7 @@ class App:
         self.cancel.clear()
         self.errors.clear()
         self.set_running(True)
-        self.worker = threading.Thread(target=self.work, args=(jobs, lang, model, tr, pos), daemon=True)
+        self.worker = threading.Thread(target=self.work, args=(jobs, lang, model, tr, pos, out_dir), daemon=True)
         self.worker.start()
 
     def dub_settings(self) -> tuple[str, float | None]:
@@ -931,7 +969,6 @@ class App:
     def start_dub(self) -> None:
         """Thuyết minh từ <tên>.vi.srt có sẵn, không nhận dạng / dịch lại."""
         from .dub import output_path
-        from .translate import translated_path
 
         if not self.files:
             self.pick()
@@ -939,7 +976,8 @@ class App:
                 return
         if not self.ensure_required():
             return
-        ready = [f for f in self.files if os.path.exists(translated_path(srt_path(f), "vi"))]
+        out_dir = self.out_dir
+        ready = [f for f in self.files if os.path.exists(vi_srt_path(f, out_dir))]
         missing = [f for f in self.files if f not in ready]
         if not ready:
             messagebox.showwarning("Chưa có bản dịch",
@@ -948,7 +986,7 @@ class App:
             return
         if not self.ensure_vieneu():
             return
-        exist = [f for f in ready if os.path.exists(output_path(f))]
+        exist = [f for f in ready if os.path.exists(output_path(f, out_dir))]
         if exist and not messagebox.askyesno("Ghi đè?", f"Đã có {len(exist)} file thuyết minh. Làm lại và ghi đè?"):
             return
         for f in missing:
@@ -957,7 +995,7 @@ class App:
         self.cancel.clear()
         self.errors.clear()
         self.set_running(True)
-        self.worker = threading.Thread(target=self.work_dub, args=(ready, voice, duck), daemon=True)
+        self.worker = threading.Thread(target=self.work_dub, args=(ready, voice, duck, out_dir), daemon=True)
         self.worker.start()
 
     def stop(self) -> None:
@@ -985,6 +1023,8 @@ class App:
         for w in (self.url_entry, self.url_btn):
             w.config(state="disabled" if running else "normal")
         self.cookies.config(state="disabled" if running else "readonly")
+        self.out_btn.config(state="disabled" if running else "normal")
+        self.out_reset.config(state="normal" if self.out_dir and not running else "disabled")
         self.sync_dub()
         # hồ sơ đang được luồng nền ghi -> khoá các ô cho tới khi chạy xong
         for w in (*self.info_inputs, self.refs, self.ref_add, self.ref_del):
@@ -996,7 +1036,7 @@ class App:
     def emit(self, *ev) -> None:
         self.q.put(ev)
 
-    def work(self, jobs: list, lang, model: str, tr, pos: str = "auto") -> None:
+    def work(self, jobs: list, lang, model: str, tr, pos: str = "auto", out_dir: str | None = None) -> None:
         """jobs: [(đường dẫn video, hồ sơ phim)] theo đúng thứ tự tập."""
         import numpy as np
 
@@ -1049,15 +1089,15 @@ class App:
                     self.emit("log", "  → Phụ đề mới sẽ hiện ở phía trên màn hình")
                 self.save_transcript(t, path)
                 cues = make_cues(t)
-                out = srt_path(path)
+                out = srt_path(path, out_dir)
                 write_subs(cues, out, position)
                 self.emit("done", name, out, len(cues), t.language, time.time() - started)
                 if tr and tr[0] != t.language and cues:
                     target, claude_model, flags, dub = tr
                     vi_srt = self.translate_file(path, cues, t.language, target, claude_model, profile,
-                                                 position=position, flags=flags)
+                                                 position=position, flags=flags, out_dir=out_dir)
                     if dub:
-                        self.dub_file(path, vi_srt, *dub)
+                        self.dub_file(path, vi_srt, *dub, out_dir=out_dir)
             except Cancelled:
                 self.emit("cancelled")
                 return
@@ -1068,7 +1108,7 @@ class App:
                 release_video(lock)
         self.emit("finished")
 
-    def work_download(self, url: str, cookies: str | None = None) -> None:
+    def work_download(self, url: str, cookies: str | None = None, out_dir: str | None = None) -> None:
         from .youtube import Cancelled as DownloadCancelled
         from .youtube import download
 
@@ -1080,7 +1120,7 @@ class App:
                 self.emit("yprogress", done, total, speed, eta, part)
 
         try:
-            path = download(url, status=lambda m: self.emit("log", "  " + m), progress=progress,
+            path = download(url, out_dir, status=lambda m: self.emit("log", "  " + m), progress=progress,
                             cancel=self.cancel, cookies_from=cookies)
         except DownloadCancelled:
             self.emit("cancelled")
@@ -1091,9 +1131,7 @@ class App:
             return
         self.emit("ydone", path)
 
-    def work_dub(self, files: list[str], voice: str, duck: float | None) -> None:
-        from .translate import translated_path
-
+    def work_dub(self, files: list[str], voice: str, duck: float | None, out_dir: str | None = None) -> None:
         for idx, path in enumerate(files):
             name = os.path.basename(path)
             self.emit("file", idx, len(files), name)
@@ -1102,7 +1140,7 @@ class App:
                 self.emit("log", "  ⏭ Cửa sổ khác đang làm video này — bỏ qua")
                 continue
             try:
-                self.dub_file(path, translated_path(srt_path(path), "vi"), voice, duck)
+                self.dub_file(path, vi_srt_path(path, out_dir), voice, duck, out_dir=out_dir)
             except Cancelled:
                 self.emit("cancelled")
                 return
@@ -1113,7 +1151,7 @@ class App:
                 release_video(lock)
         self.emit("finished")
 
-    def dub_file(self, path: str, subs: str, voice: str, duck: float | None) -> None:
+    def dub_file(self, path: str, subs: str, voice: str, duck: float | None, out_dir: str | None = None) -> None:
         """Thuyết minh một video từ file phụ đề tiếng Việt."""
         from .dub import Cancelled as DCancelled
         from .dub import CLONE, voiceover
@@ -1130,7 +1168,7 @@ class App:
 
         try:
             r = voiceover(path, cues, voice=voice, duck_db=duck, status=lambda m: self.emit("stage", m),
-                          progress=progress, cancel=self.cancel)
+                          progress=progress, cancel=self.cancel, out_dir=out_dir)
         except DCancelled:
             raise Cancelled() from None
         self.emit("log", "  " + r.describe())
@@ -1149,7 +1187,7 @@ class App:
             pass
 
     def translate_file(self, path, cues, source, target, claude_model, profile, position="bottom",
-                       flags: dict | None = None) -> str:
+                       flags: dict | None = None, out_dir: str | None = None) -> str:
         """Nạp dồn những gì hồ sơ chưa có (link, bản dịch các tập khác cùng phim), dịch, rồi ghi
         lại vào hồ sơ những gì học được ở tập này để tập sau dùng tiếp."""
         from .formats import write_subs
@@ -1165,7 +1203,7 @@ class App:
                 profile.reload()  # lấy thêm tên riêng / xưng hô mà cửa sổ khác vừa học
             except (OSError, ValueError):
                 pass
-        out = translated_path(srt_path(path), target)
+        out = translated_path(srt_path(path, out_dir), target)
         episode = episode_of(path)
         runner = ClaudeRunner(model=claude_model)
         say = lambda m: self.emit("stage", m)  # noqa: E731
@@ -1301,7 +1339,8 @@ class App:
             if self.errors:
                 self.stage.config(text=f"Xong, có {len(self.errors)} file lỗi (xem log bên dưới).")
             else:
-                self.stage.config(text="Xong! Các file .srt nằm cùng thư mục với video.")
+                where = f"trong {self.out_dir}" if self.out_dir else "cùng thư mục với video"
+                self.stage.config(text=f"Xong! Các file kết quả nằm {where}.")
                 self.root.bell()
 
     def write(self, line: str) -> None:
