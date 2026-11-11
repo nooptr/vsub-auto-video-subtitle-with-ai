@@ -1,7 +1,7 @@
 """Giao diện dòng lệnh.
 
   vsub phim.mp4                         # tạo phim.srt cạnh video
-  vsub "https://youtu.be/…" --to vi     # tải video YouTube về ~/Downloads rồi làm như file thường
+  vsub "https://youtu.be/…" --to vi     # tải video YouTube / X (Twitter) về ~/Downloads rồi làm như file thường
   vsub phim.mp4 --lang vi --embed       # + xuất phim.sub.mp4 có phụ đề mềm
   vsub phim.mp4 --burn                  # + in cứng phụ đề lên hình
   vsub reflow phim.transcript.json      # chia dòng lại, không cần nhận dạng lại
@@ -240,9 +240,9 @@ def cmd_run(a) -> None:
     from .pipeline import Transcript, check_hardsubs, make_cues, resolve_position, transcribe_video
 
     require_ffmpeg()
-    from .youtube import is_youtube_url
+    from .youtube import is_video_url
 
-    if is_youtube_url(a.video):
+    if is_video_url(a.video):
         a.video = _download(a.video, a.download_dir or a.out_dir, _cookies_browser(a.cookies_from_browser))
     video = os.path.abspath(a.video)
     if not os.path.exists(video):
@@ -371,12 +371,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="nhận dạng giọng nói và tạo phụ đề (mặc định)")
-    r.add_argument("video", help="file video, hoặc link video YouTube (tải về .mp4 H.264, tối đa 1080p)")
+    r.add_argument("video", help="file video, hoặc link video YouTube / bài đăng X (tải về .mp4 H.264, tối đa 1080p)")
     _add_out_dir_arg(r)
     r.add_argument("--download-dir",
-                   help="thư mục lưu video tải từ YouTube (mặc định: --out-dir nếu có, không thì ~/Downloads)")
+                   help="thư mục lưu video tải từ YouTube / X (mặc định: --out-dir nếu có, không thì ~/Downloads)")
     r.add_argument("--cookies-from-browser", metavar="BROWSER",
-                   help="khi YouTube đòi xác minh, lấy cookie YouTube từ trình duyệt này: chrome, firefox, brave, "
+                   help="khi YouTube / X đòi xác minh hay đăng nhập, lấy cookie từ trình duyệt này: chrome, firefox, brave, "
                         "safari, edge (mặc định: biến VSUB_YT_COOKIES hoặc lựa chọn trong giao diện; none = tắt)")
     r.add_argument("-o", "--output", help="file phụ đề xuất ra (.srt hoặc .vtt)")
     r.add_argument("-l", "--lang", help="mã ngôn ngữ của phim: vi, en, zh, ko, ja... (bỏ trống = tự nhận)")

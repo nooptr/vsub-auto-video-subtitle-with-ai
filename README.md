@@ -6,7 +6,7 @@ Nhận dạng thoại bằng Whisper, cắt câu theo chuẩn phụ đề phim, 
 (giữ tên riêng và xưng hô), thuyết minh tiếng Việt bằng VieNeu-TTS. Trên Mac chip M, app chạy bằng
 **mlx-whisper** (dùng GPU). Trên máy khác thì tự chuyển sang **faster-whisper**.
 
-- **Video từ máy hoặc từ YouTube**: kéo thả file, hoặc dán link YouTube để app tự tải bản `.mp4` 1080p.
+- **Video từ máy, YouTube hoặc X (Twitter)**: kéo thả file, hoặc dán link YouTube / bài đăng X để app tự tải bản `.mp4` (tối đa 1080p).
 - **Phụ đề gốc + bản dịch**: `tên-video.srt` và `tên-video.vi.srt`, IINA, VLC, Infuse tự nhận khi mở video.
 - **Thuyết minh tiếng Việt**: chọn một trong 15 giọng có sẵn, hoặc **clone giọng của chính người nói
   trong video** (hợp với vlog, hướng dẫn, review một người nói).
@@ -61,7 +61,7 @@ Script tự cài ffmpeg, uv và thư viện Python, rồi build **`Vsub.app`** n
 | Model Whisper | bắt buộc | tự tải lần chạy đầu (large-v3-turbo 1,6 GB, large-v3 3,1 GB) |
 | Claude CLI (đã đăng nhập) | dịch | cài bằng `curl -fsSL https://claude.ai/install.sh \| bash`, rồi `claude auth login` |
 | VieNeu-TTS | thuyết minh | venv riêng, xem mục [Thuyết minh](#thuyết-minh-bằng-vieneu-tts) |
-| yt-dlp (+ deno) | tải YouTube | cài sẵn cùng thư viện Python, không cần làm gì thêm |
+| yt-dlp (+ deno) | tải YouTube / X | cài sẵn cùng thư viện Python, không cần làm gì thêm |
 
 Tab **Thư viện** trong app cho biết đang có gì, thiếu gì: ✅ đủ, ❌ thiếu thứ bắt buộc, ⚠️ thiếu thứ tuỳ chọn.
 Dòng nào thiếu thì có nút **Cài đặt** / **Đăng nhập** / **Tải trước**. App hỏi xác nhận, ghi rõ các lệnh sẽ chạy,
@@ -85,7 +85,9 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
 1. **Kéo thả video hoặc cả thư mục** vào cửa sổ app, hoặc thả lên icon `Vsub.app` trong Finder/Dock. Cũng có thể bấm **Chọn video…**. Danh sách tự sắp theo tên: các tập
    cùng phim đứng liền nhau, đúng thứ tự tập (`ep.2` đứng trước `ep.10`)
 
-   **Video trên YouTube:** dán link vào ô **Link YouTube** rồi bấm **Tải video** (hoặc Enter). App tải bản
+   **Video trên YouTube hoặc X (Twitter):** dán link vào ô **Link YouTube / X** rồi bấm **Tải video** (hoặc
+   Enter). Link X là link bài đăng có video, ví dụ `https://x.com/USER/status/TWEET_ID` (bài có nhiều video thì
+   lấy video đầu, muốn video thứ 2 thì dùng link `…/status/TWEET_ID/video/2`). App tải bản
    `.mp4` H.264 tốt nhất, tối đa 1080p (mở được ở mọi nơi, kể cả QuickTime), vào **Thư mục lưu** (chưa chọn
    thì vào **Downloads**),
    rồi thêm vào danh sách. Đã tải rồi thì dùng lại file cũ. Tải không được dù video vẫn xem được trên
@@ -96,6 +98,9 @@ Double-click **`Vsub.app`** trong thư mục này (hoặc chạy `uv run vsub-gu
    không cookie trước, chỉ khi YouTube chặn mới thử lại bằng cookie YouTube của trình duyệt đó. Lần đầu với
    Chrome / Brave / Edge, macOS hỏi quyền Keychain ("Chrome Safe Storage"): chọn **Cho phép**. Safari cần cấp
    quyền Full Disk Access.
+
+   X bắt đăng nhập với bài đăng có nội dung nhạy cảm hoặc tài khoản để riêng tư: cũng chọn trình duyệt đã
+   đăng nhập X ở ô **Cookie**, app sẽ thử lại bằng cookie X của trình duyệt đó.
 
    **Thư mục lưu:** mặc định mọi file kết quả nằm cạnh video. Muốn gom vào một chỗ khác thì bấm **Chọn…** ở
    dòng **Thư mục lưu**; bấm **Cạnh video** để quay về như cũ. App nhớ lựa chọn này cho lần sau.
@@ -121,14 +126,15 @@ nhưng đừng di chuyển hay đổi tên thư mục project (app gọi vào đ
 # Tạo phim.srt cạnh video (tự nhận ngôn ngữ)
 uv run vsub "phim.mp4"
 
-# Video YouTube: tải về ~/Downloads (.mp4 H.264, tối đa 1080p) rồi làm như file thường
+# Video YouTube / X (Twitter): tải về ~/Downloads (.mp4 H.264, tối đa 1080p) rồi làm như file thường
 uv run vsub "https://youtu.be/VIDEO_ID" --to vi --dub
+uv run vsub "https://x.com/USER/status/TWEET_ID" --to vi
 uv run vsub "https://www.youtube.com/watch?v=VIDEO_ID" --download-dir ~/Movies
 uv run vsub "https://youtu.be/VIDEO_ID" --cookies-from-browser chrome   # khi YouTube đòi xác minh bot
 # đặt một lần trong ~/.zshrc thay cho gõ mỗi lần:  export VSUB_YT_COOKIES=chrome
 
 # Lưu kết quả (.srt, .vi.srt, .thuyetminh.mp4, .transcript.json…) vào thư mục khác thay vì cạnh video.
-# Có ở run / translate / embed / dub. Với link YouTube, video cũng tải vào đây (trừ khi có --download-dir).
+# Có ở run / translate / embed / dub. Với link YouTube / X, video cũng tải vào đây (trừ khi có --download-dir).
 uv run vsub "phim.mp4" --to vi --out-dir ~/PhuDe      # viết tắt: -O ~/PhuDe
 uv run vsub dub "phim.mp4" -O ~/PhuDe                 # tìm phim.vi.srt trong ~/PhuDe trước, rồi cạnh video
 
@@ -163,7 +169,7 @@ Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `ma
 | `make setup` | Cài lần đầu trên Mac (giống `bash setup.command`) |
 | `make sync` / `make dev` | Cài / cập nhật thư viện Python; `dev` thêm pytest |
 | `make doctor` / `make install-vieneu` | Kiểm tra thành phần / cài VieNeu-TTS |
-| `make update-ytdlp` | Cập nhật yt-dlp khi YouTube đổi cách chặn |
+| `make update-ytdlp` | Cập nhật yt-dlp khi YouTube / X đổi cách chặn |
 | `make gui` | Mở giao diện |
 | `make sub <video>` | Tạo phụ đề gốc (`.srt`) |
 | `make vi <video>` | Tạo phụ đề và dịch sang tiếng Việt |
@@ -174,9 +180,9 @@ Trong thư mục project có sẵn `Makefile` gom các lệnh hay dùng. Gõ `ma
 | `make build-mac` / `make build-win` | Đóng gói bản phát hành |
 | `make clean` | Xoá `dist/`, `__pycache__`, `*.egg-info` |
 
-`<video>` là file video hoặc link YouTube, ghi ngay sau tên lệnh (đường dẫn có khoảng trắng thì để trong
+`<video>` là file video hoặc link YouTube / X, ghi ngay sau tên lệnh (đường dẫn có khoảng trắng thì để trong
 dấu nháy). Biến thêm: `LANG_SRC` là ngôn ngữ gốc (bỏ trống = tự nhận), `VOICE` là giọng (mặc định Trúc Ly),
-`COOKIES` là trình duyệt lấy cookie khi YouTube chặn (hoặc `export VSUB_YT_COOKIES=chrome` một lần),
+`COOKIES` là trình duyệt lấy cookie khi YouTube / X chặn (hoặc `export VSUB_YT_COOKIES=chrome` một lần),
 `OUT` là thư mục lưu kết quả (bỏ trống = cạnh video), `ARGS` là tuỳ chọn thêm cho `vsub`. Cách cũ `IN="…"` vẫn dùng được.
 
 ```bash
@@ -338,7 +344,8 @@ Dòng lệnh cũng dùng hồ sơ: `--link` và `--ref` (lặp được) thêm l
 
 ## Cách hoạt động
 
-0. **Link YouTube** (nếu có): yt-dlp tải hình H.264 + tiếng AAC tốt nhất ≤ 1080p, ffmpeg ghép thành `.mp4`.
+0. **Link YouTube / X** (nếu có): yt-dlp tải hình H.264 + tiếng AAC tốt nhất ≤ 1080p, ffmpeg ghép thành `.mp4`.
+   Video X vốn là `.mp4` H.264 có sẵn tiếng nên tải thẳng một file, không cần ghép.
 1. **Tách audio** bằng ffmpeg: mono 16 kHz, có lọc nhẹ highpass/lowpass. File bị mất gói audio giữa phim
    (có tập hụt 6 khúc, mỗi khúc 8 giây) được lấp bằng khoảng lặng để phụ đề sau chỗ hụt không bị sớm dần.
 2. **VAD** (Silero): tìm các đoạn có thoại. Silero hay bỏ sót lời nói lẫn nhạc nền hoặc giọng

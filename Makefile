@@ -4,6 +4,7 @@
 #   make gui
 #   make sub phim.mp4
 #   make vi "https://www.youtube.com/watch?v=VIDEO_ID"
+#   make vi https://x.com/USER/status/TWEET_ID
 #   make clone ~/Downloads/phim.mp4
 #   make dub phim.mp4 VOICE="Thiện Minh"
 #   make vi phim.mp4 OUT=~/PhuDe   # lưu kết quả vào ~/PhuDe thay vì cạnh video
@@ -21,7 +22,7 @@ LANG_SRC ?=
 COOKIES ?=
 OUT ?=
 
-# --cookies-from-browser chỉ thêm khi có COOKIES (trình duyệt lấy cookie YouTube khi bị chặn)
+# --cookies-from-browser chỉ thêm khi có COOKIES (trình duyệt lấy cookie YouTube / X khi bị chặn)
 cookie_flag = $(if $(COOKIES),--cookies-from-browser $(COOKIES))
 
 # --out-dir chỉ thêm khi có OUT (thư mục lưu kết quả; bỏ trống = cạnh video)
@@ -47,18 +48,18 @@ export IN
 in := "$${IN/\#\~/$$HOME}"
 
 define need_in
-	@if [ -z "$$IN" ]; then echo 'Thiếu video: ghi file video hoặc link YouTube sau tên lệnh, ví dụ  make $@ phim.mp4'; exit 1; fi
+	@if [ -z "$$IN" ]; then echo 'Thiếu video: ghi file video hoặc link YouTube / X sau tên lệnh, ví dụ  make $@ phim.mp4'; exit 1; fi
 endef
 
 .PHONY: help setup sync dev gui sub vi dub-new clone dub dub-clone doctor install-vieneu \
         test build-mac build-win update-ytdlp clean
 
 help: ## Hiện danh sách lệnh
-	@echo "Dùng: make <lệnh> [video | link YouTube] [OUT=...] [VOICE=...] [LANG_SRC=...] [ARGS=...]"
+	@echo "Dùng: make <lệnh> [video | link YouTube / X] [OUT=...] [VOICE=...] [LANG_SRC=...] [ARGS=...]"
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo
-	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), COOKIES (chrome, firefox… khi YouTube chặn), OUT (thư mục lưu kết quả), ARGS (tuỳ chọn thêm)"
+	@echo "Biến: IN (thay cho ghi video sau tên lệnh), LANG_SRC (ngôn ngữ gốc: ja, en, zh…), VOICE (giọng), COOKIES (chrome, firefox… khi YouTube / X chặn), OUT (thư mục lưu kết quả), ARGS (tuỳ chọn thêm)"
 
 # ---------------------------------------------------------------- cài đặt
 
@@ -77,7 +78,7 @@ doctor: ## Kiểm tra FFmpeg, Whisper, Claude, VieNeu
 install-vieneu: ## Cài VieNeu-TTS để thuyết minh
 	$(VSUB) doctor --install vieneu
 
-update-ytdlp: ## Cập nhật yt-dlp khi YouTube đổi cách chặn
+update-ytdlp: ## Cập nhật yt-dlp khi YouTube / X đổi cách chặn
 	$(UV) lock --upgrade-package yt-dlp
 	$(UV) sync
 

@@ -286,10 +286,10 @@ class App:
         self.count_lbl = ttk.Label(row, text="Chưa chọn file nào")
         self.count_lbl.pack(side="left", padx=12)
 
-        # --- tải từ YouTube (.mp4 H.264, tối đa 1080p) vào thư mục lưu / ~/Downloads rồi thêm vào danh sách
+        # --- tải từ YouTube / X (.mp4 H.264, tối đa 1080p) vào thư mục lưu / ~/Downloads rồi thêm vào danh sách
         urow = ttk.Frame(frm)
         urow.pack(fill="x", pady=(8, 0))
-        ttk.Label(urow, text="Link YouTube:").pack(side="left")
+        ttk.Label(urow, text="Link YouTube / X:").pack(side="left")
         self.url_var = tk.StringVar()
         self.url_entry = ttk.Entry(urow, textvariable=self.url_var)
         self.url_entry.pack(side="left", fill="x", expand=True, padx=8)
@@ -591,22 +591,23 @@ class App:
 
     def set_out_dir(self, d: str | None) -> None:
         self.out_dir = d or None
-        self.out_var.set(self.out_dir or "(cùng thư mục với video; video YouTube tải vào ~/Downloads)")
+        self.out_var.set(self.out_dir or "(cùng thư mục với video; video YouTube / X tải vào ~/Downloads)")
         self.out_reset.config(state="normal" if self.out_dir and not self.running else "disabled")
         save_settings({**load_settings(), "out_dir": self.out_dir or ""})
 
     def download_url(self) -> None:
-        """Tải video YouTube trong luồng nền; xong thì thêm vào danh sách như file chọn tay."""
-        from .youtube import is_youtube_url
+        """Tải video YouTube / X trong luồng nền; xong thì thêm vào danh sách như file chọn tay."""
+        from .youtube import is_video_url, site_name
 
         url = self.url_var.get().strip()
         if not url:
             self.url_entry.focus_set()
             return
-        if not is_youtube_url(url):
+        if not is_video_url(url):
             messagebox.showwarning("Link không hợp lệ",
-                                   "Hãy dán link một video YouTube, ví dụ:\n"
-                                   "https://www.youtube.com/watch?v=…\nhttps://youtu.be/…")
+                                   "Hãy dán link một video YouTube hoặc bài đăng X có video, ví dụ:\n"
+                                   "https://www.youtube.com/watch?v=…\nhttps://youtu.be/…\n"
+                                   "https://x.com/…/status/…")
             return
         if self.worker and self.worker.is_alive():
             return
@@ -616,7 +617,7 @@ class App:
         self.errors.clear()
         self.set_running(True)
         self.bar.config(value=0)
-        self.write(f"\n⇣ Tải từ YouTube: {url}")
+        self.write(f"\n⇣ Tải từ {site_name(url)}: {url}")
         from .youtube import BROWSERS
 
         cookies = BROWSERS[self.cookies.current()][1]

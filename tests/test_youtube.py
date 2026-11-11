@@ -135,3 +135,91 @@ def test_download_without_cookies_explains_how_to_fix(tmp_path, monkeypatch):
     with pytest.raises(youtube.DownloadError, match="cookie"):
         youtube.download("https://youtu.be/aqz-KE-bpKQ", str(tmp_path))
     assert _FakeYDL.calls == [None]
+
+
+# --- X (Twitter) ---
+
+@pytest.mark.parametrize("url", [
+    "https://x.com/Nebraskangooner/status/2115082849963422079",
+    "https://twitter.com/user_1/status/2115082849963422079?s=20",
+    "http://www.x.com/user/status/2115082849963422079/",
+    "https://mobile.twitter.com/user/status/2115082849963422079",
+    "https://x.com/user/status/2115082849963422079/video/1",
+    "https://x.com/i/status/2115082849963422079",
+    "https://x.com/i/web/status/2115082849963422079",
+    "  x.com/user/status/2115082849963422079?t=abc&s=19  ",
+])
+def test_recognizes_x_video_links(url):
+    assert youtube.is_twitter_url(url)
+    assert youtube.is_video_url(url)
+    assert not youtube.is_youtube_url(url)
+    assert youtube.site_name(url) == "X"
+
+
+@pytest.mark.parametrize("text", [
+    "https://x.com/user", "https://x.com/home", "https://x.com/user/status/", "https://x.com/user/status/abc",
+    "https://notx.com/user/status/2115082849963422079", "https://x.com.evil.io/user/status/2115082849963422079",
+    "phim.mp4",
+])
+def test_rejects_non_tweet_links(text):
+    assert not youtube.is_twitter_url(text)
+    assert not youtube.is_video_url(text)
+
+
+def test_youtube_links_still_video_urls():
+    assert youtube.is_video_url("https://youtu.be/aqz-KE-bpKQ")
+    assert youtube.site_name("https://youtu.be/aqz-KE-bpKQ") == "YouTube"
+
+
+def test_x_format_takes_single_file_with_sound(tmp_path):
+    # mp4 "http-*" của X có sẵn tiếng nhưng không ghi codec: không được ghép thêm tiếng (thành 2 rãnh tiếng)
+    opts = youtube.ydl_options(str(tmp_path), site="X")
+    first = opts["format"].split("/")[0]
+    assert first.startswith("b[") and "+" not in first and "height<=1080" in first
+    assert opts["playlist_items"] == "1"  # tweet nhiều video: lấy video đầu (hoặc video số N trong link)
+    assert youtube.ydl_options(str(tmp_path))["format"] == youtube.FORMAT
+
+
+@pytest.mark.parametrize("raw, expect", [
+    ("ERROR: [twitter] 1: NSFW tweet requires authentication. Use --cookies-from-browser or --cookies", True),
+    ("ERROR: [twitter] 1: You are not authorized to view this protected tweet. Use --cookies", True),
+    ("ERROR: [twitter] 1: Requested tweet is unavailable", False),
+])
+def test_needs_login_x(raw, expect):
+    assert youtube.needs_login(raw) is expect
+
+
+@pytest.mark.parametrize("raw, expect", [
+    ("ERROR: [twitter] 1: NSFW tweet requires authentication", "nhạy cảm"),
+    ("ERROR: [twitter] 1: You are not authorized to view this protected tweet", "riêng tư"),
+    ("ERROR: [twitter] 1: Requested tweet is unavailable", "không còn xem được"),
+    ("ERROR: [twitter] 1: No video could be found in this tweet", "không có video"),
+])
+def test_explains_x_errors(raw, expect):
+    msg = youtube.explain_error(raw, site="X")
+    assert expect in msg
+    assert "YouTube" not in msg
+
+
+class _FakeTweetYDL(_FakeYDL):
+    def extract_info(self, url, download=False):
+        _FakeTweetYDL.calls.append(self.opts["format"])
+        return {"_type": "playlist", "title": "tweet", "entries": [{"title": "Clip", "height": 720}]}
+
+    def process_ie_result(self, info, download=True):
+        out = self.opts["outtmpl"]["default"].replace("%(title).150B.%(ext)s", "Clip.mp4")
+        open(out, "wb").close()
+        return {**info, "entries": [{**info["entries"][0], "requested_downloads": [{"filepath": out}]}]}
+
+
+def test_download_tweet_with_several_videos(tmp_path, monkeypatch):
+    import yt_dlp
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", _FakeTweetYDL)
+    monkeypatch.setattr(youtube.shutil, "which", lambda name: "/usr/bin/" + name)
+    _FakeTweetYDL.calls = []
+    said = []
+    path = youtube.download("https://x.com/u/status/2115082849963422079", str(tmp_path), status=said.append)
+    assert path == str(tmp_path / "Clip.mp4")
+    assert _FakeTweetYDL.calls == [youtube.FORMAT_X]
+    assert any("X" in m for m in said)
